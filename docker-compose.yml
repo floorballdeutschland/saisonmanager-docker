@@ -6,10 +6,12 @@ services:
     container_name: saisonmanager_dev_nginx
     image: saisonmanager_dev_nginx
 
+    ports:
+      - "49200:443"
     volumes:
       - ./nginx/config:/etc/nginx/:ro
       - ./nginx/logs:/logs
-      - ./frontend_build:/saisonmanager-frontend
+      - ./saisonmanager-frontend:/saisonmanager-frontend
     restart: unless-stopped
   rails-api:
     build:

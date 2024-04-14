@@ -1,5 +1,10 @@
 nginx/diffie-hellman-params/dhparams.pem
 nginx/cert/*.pem
+nginx/logs/*
+
+saisonmanager-frontend/*
 
 *.pem
 README.pdf
+
+!.keep
