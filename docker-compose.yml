@@ -1,0 +1,22 @@
+services:
+  nginx:
+    build:
+      context: nginx
+      dockerfile: nginx.Dockerfile
+    container_name: saisonmanager_dev_nginx
+    image: saisonmanager_dev_nginx
+
+    volumes:
+      - ./nginx/config:/etc/nginx/:ro
+      - ./nginx/logs:/logs
+      - ./frontend_build:/saisonmanager-frontend
+    restart: unless-stopped
+  rails-api:
+    build:
+      context: saisonmanager-api
+      dockerfile: rails.Dockerfile
+    container_name: saisonmanager_rails_api
+    image: saisonmanager_rails_api
+    volumes:
+      - ./saisonmanager-api:/app
+    restart: unless-stopped

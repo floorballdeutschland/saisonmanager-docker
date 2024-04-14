@@ -1,0 +1,5 @@
+nginx/diffie-hellman-params/dhparams.pem
+nginx/cert/*.pem
+
+*.pem
+README.pdf
