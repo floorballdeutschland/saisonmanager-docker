@@ -16,9 +16,34 @@ services:
   rails-api:
     build:
       context: saisonmanager-api
-      dockerfile: rails.Dockerfile
+      dockerfile: Dockerfile
     container_name: saisonmanager_rails_api
     image: saisonmanager_rails_api
     volumes:
       - ./saisonmanager-api:/app
+      - ./saisonmanager-api/.shell_aliases:/root/.aliases:ro
+    environment:
+      DB_DATABASE: saisonmanager
+      DB_USERNAME: saisonmanager
+      DB_PASSWORD: saisonmanager
+      RAILS_MASTER_KEY: abc123
+      AZURE_KEY: kjta0hBq+TzSXHY58OMSpoPhLagDmBvlIpBCVVtwLYJLAbuZjTGkFR9o2Fi5gkvg2C5nKcmVor4/+AStaw83Bw==  # NICHT EINCHECKEN!
+      AZURE_CONTAINER: smlive
+      DB_HOST: postgres
+      DB_PORT: 5432
+      RAILS_ENV: production # development als Entwickler nutzen
+    restart: unless-stopped
+  postgres:
+    image: postgres:12
+    container_name: saisonmanager_postgres
+    environment:
+      POSTGRES_USER: saisonmanager
+      POSTGRES_PASSWORD: saisonmanager
+      POSTGRES_DB: saisonmanager
+    volumes:
+      #- ./postgres/data:/var/lib/postgresql/data    # für die entwicklung gerne aktivieren.
+      - ./postgres/scripts:/docker-entrypoint-initdb.d/
+      - ./postgres/dumps:/db-dumps/
+    ports:
+      - "49201:5432"
     restart: unless-stopped

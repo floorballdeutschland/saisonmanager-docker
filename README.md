@@ -39,3 +39,6 @@ Für berechtigte Entwickler liegt auf dem Server das Zertifikat zum Abruf:
 scp saisonmanager.de:/home/devs/cert/{cert.pem,chain.pem,fullchain.pem,privkey.pem} nginx/cert/
 
 ```
+
+## Datenbank dump ablegen
+downloade den aktuellen DB dump nach postgres/dumps und nenne ihn import.sql
