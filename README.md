@@ -40,5 +40,17 @@ scp saisonmanager.de:/home/devs/cert/{cert.pem,chain.pem,fullchain.pem,privkey.p
 
 ```
 
+Nach dem Updaten der Certs sollte der NGINX neu gebaut werden:
+
+```
+docker compose build nginx
+```
+
 ## Datenbank dump ablegen
 downloade den aktuellen DB dump nach postgres/dumps und nenne ihn import.sql
+
+## Frontend in Folder kopieren
+
+```
+cp -R ../saisonmanager/dist/saisonmanager/* saisonmanager-frontend
+```
