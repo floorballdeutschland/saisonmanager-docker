@@ -15,13 +15,13 @@ services:
     restart: unless-stopped
   rails-api:
     build:
-      context: saisonmanager-api
+      context: ../saisonmanager-api
       dockerfile: Dockerfile
     container_name: saisonmanager_rails_api
     image: saisonmanager_rails_api
     volumes:
-      - ./saisonmanager-api:/app
-      - ./saisonmanager-api/.shell_aliases:/root/.aliases:ro
+      - ../saisonmanager-api:/app
+      - ../saisonmanager-api/.shell_aliases:/root/.aliases:ro
     environment:
       DB_DATABASE: saisonmanager
       DB_USERNAME: saisonmanager
