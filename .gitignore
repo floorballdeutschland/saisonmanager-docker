@@ -10,4 +10,7 @@ postgres/dumps/*.sql
 *.pem
 README.pdf
 
+# Staging-Secret (SM_STAGING_SECRET_KEY_BASE) – nie einchecken
+.env
+
 !.keep

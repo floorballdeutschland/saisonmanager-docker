@@ -103,3 +103,76 @@ The deploy script:
 
 **Production server:** `root@178.104.133.109` (SSH via YubiKey `~/.ssh/yubikey`)
 Docker setup lives at `/opt/saisonmanager/saisonmanager-docker/`.
+
+## Staging-Umgebung (saisonmanager.dev)
+
+Staging läuft auf **demselben Server** wie Prod, in **demselben Compose-Projekt**,
+aber vollständig isoliert: eigener Rails-Container, eigenes Postgres + Volume,
+eigener API-Checkout (Branch `staging`), eigenes Frontend-Verzeichnis und ein
+Mailpit-Catcher statt echtem Mailversand. Der nginx-Container wird geteilt –
+`saisonmanager.dev` ist ein zusätzlicher Server-Block (`saisonmanager.dev.conf`,
+eingebunden am Ende von `saisonmanager.prod.conf`).
+
+| Service | Container | Isolation |
+|---|---|---|
+| `rails-api-staging` | `saisonmanager_rails_api_staging` | Branch `staging`, neutralisierte Secrets |
+| `postgres-staging` | `saisonmanager_postgres_staging` | Volume `postgres_staging_data`, Host-Port 49301 |
+| `mailpit` | `saisonmanager_mailpit` | fängt alle Mails, UI unter `/mailpit/` |
+
+Compose-Aufruf (Basis + Prod-Overlay + Staging-Overlay):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml <command>
+```
+
+### Einmalige Server-Einrichtung
+
+```bash
+# 1) DNS: A-Record saisonmanager.dev -> 178.104.133.109 (beim Registrar)
+
+# 2) Staging-API-Checkout auf Branch `staging`
+git clone <api-repo> /opt/saisonmanager/saisonmanager-api-staging
+cd /opt/saisonmanager/saisonmanager-api-staging && git checkout staging
+
+# 3) Frontend-Zielverzeichnis (muss vor der Cert-Ausstellung existieren – dient
+#    auch als ACME-Webroot)
+mkdir -p /opt/saisonmanager/saisonmanager-frontend-staging
+
+# 4) Staging-Secret setzen (untracked .env im docker-Verzeichnis)
+echo "SM_STAGING_SECRET_KEY_BASE=$(openssl rand -hex 64)" \
+  >> /opt/saisonmanager/saisonmanager-docker/.env
+
+# 5) Let's-Encrypt-Cert für saisonmanager.dev (webroot über den ACME-Block).
+#    .dev ist HSTS-preloaded -> Cert MUSS vor dem ersten HTTPS-Aufruf stehen.
+certbot certonly --webroot \
+  -w /opt/saisonmanager/saisonmanager-frontend-staging \
+  -d saisonmanager.dev
+
+# 6) Stack hochziehen + nginx neu laden
+cd /opt/saisonmanager/saisonmanager-docker
+git pull origin main
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml \
+  up -d nginx postgres-staging mailpit rails-api-staging
+
+# 7) Staging-DB initial mit anonymisiertem Prod-Klon befüllen
+./scripts/staging-db-refresh.sh
+```
+
+### Laufender Betrieb
+
+```bash
+# Staging deployen (Branch `staging`), Prod bleibt unberührt
+ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/deploy-staging.sh
+
+# Frontend separat bauen/deployen (im Frontend-Repo)
+./build-deploy-staging.sh
+
+# Staging-DB erneut aus Prod auffrischen (anonymisiert)
+ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-refresh.sh
+```
+
+**Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
+erst dann Merge nach `main` → Prod-`deploy.sh`.
+
+Die secret-behaftete `.env` und die (untracked) `docker-compose.prod.yml`
+bleiben wie bisher serverseitig und werden nie eingecheckt.
