@@ -47,6 +47,8 @@ services:
       SMTP_USERNAME: ""
       SMTP_PASSWORD: ""
     command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
+    depends_on:
+      - postgres-staging
     restart: unless-stopped
 
   postgres-staging:

@@ -25,6 +25,10 @@ STAGING_PG="saisonmanager_postgres_staging"
 DB="saisonmanager"
 DUMP="/tmp/sm_prod_dump_$(date +%Y%m%d_%H%M%S).sql.gz"
 
+# Der Dump enthält echte personenbezogene Daten – bei JEDEM Abbruch löschen,
+# nicht nur im Erfolgsfall (set -e würde sonst den Dump auf der Platte lassen).
+trap 'rm -f "$DUMP"' EXIT
+
 echo "==> 1/3  Prod-Dump erstellen ($DUMP)"
 docker exec "$PROD_PG" pg_dump -U "$DB" --no-owner --no-privileges --clean --if-exists "$DB" \
   | gzip > "$DUMP"
@@ -39,5 +43,5 @@ echo "==> 3/3  Anonymisierung + Test-Logins"
 $COMPOSE run --rm -e RAILS_ENV=production rails-api-staging \
   bundle exec rails staging:anonymize
 
-rm -f "$DUMP"
+# Dump-Aufräumen übernimmt der EXIT-trap (oben).
 echo "Staging-DB neu befüllt und anonymisiert."
