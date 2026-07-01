@@ -1,0 +1,80 @@
+# Staging-Overlay für saisonmanager.dev
+#
+# Wird ZUSÄTZLICH zu docker-compose.yml + docker-compose.prod.yml geladen, damit
+# Staging denselben nginx-Container wie Prod mitbenutzt (ein Server-Block je
+# Domain). Isoliert sind: eigener Rails-Container, eigenes Postgres + Volume,
+# eigener API-Checkout (../saisonmanager-api-staging auf Branch `staging`),
+# eigenes Frontend-Verzeichnis und ein Mailpit-Catcher statt echtem Mailversand.
+#
+# Aufruf (siehe deploy-staging.sh):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml ...
+#
+# Das einzige Secret (SECRET_KEY_BASE) kommt aus der untracked .env-Datei im
+# docker-Verzeichnis (SM_STAGING_SECRET_KEY_BASE). Alle externen Dienste sind
+# neutralisiert: Passmeister leer, SMTP -> Mailpit, Azure ungenutzt (:local).
+services:
+  nginx:
+    # Staging-Frontend zusätzlich in denselben nginx mounten. Wird mit den
+    # Prod-Volumes gemerged (anderer Ziel-Pfad => additiv).
+    volumes:
+      - /opt/saisonmanager/saisonmanager-frontend-staging:/saisonmanager-frontend-staging:ro
+    depends_on:
+      - rails-api-staging
+
+  rails-api-staging:
+    build:
+      context: ../saisonmanager-api-staging
+      dockerfile: Dockerfile
+    container_name: saisonmanager_rails_api_staging
+    image: saisonmanager_rails_api_staging
+    volumes:
+      - rails_storage_staging:/app/storage
+    environment:
+      RAILS_ENV: production
+      DB_DATABASE: saisonmanager
+      DB_USERNAME: saisonmanager
+      DB_PASSWORD: saisonmanager
+      DB_HOST: postgres-staging
+      DB_PORT: 5432
+      RAILS_MASTER_KEY: placeholder_not_used
+      RAILS_SERVE_STATIC_FILES: "true"
+      RAILS_LOG_TO_STDOUT: "true"
+      SECRET_KEY_BASE: "${SM_STAGING_SECRET_KEY_BASE:?Bitte SM_STAGING_SECRET_KEY_BASE in .env setzen}"
+      # ── Externe Dienste neutralisiert ──────────────────────────────────
+      PASSMEISTER_API_KEY: ""          # leer => sauber abgefangener Fehler
+      SMTP_ADDRESS: "mailpit"          # statt smtp.office365.com (API-PR nötig)
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+    command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
+    depends_on:
+      - postgres-staging
+    restart: unless-stopped
+
+  postgres-staging:
+    image: postgres:16
+    container_name: saisonmanager_postgres_staging
+    environment:
+      POSTGRES_USER: saisonmanager
+      POSTGRES_PASSWORD: saisonmanager
+      POSTGRES_DB: saisonmanager
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    ports:
+      - "49301:5432"   # Host-Zugang für DB-Refresh/Debug (nur intern erreichbar)
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: saisonmanager_mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_WEBROOT: "mailpit"   # Web-UI unter Subpfad /mailpit/ ausliefern
+    restart: unless-stopped
+    # Web-UI (8025) wird via nginx unter https://saisonmanager.dev/mailpit/
+    # hinter Basic Auth bereitgestellt; SMTP (1025) nur intern im Compose-Netz.
+
+volumes:
+  postgres_staging_data:
+  rails_storage_staging:
