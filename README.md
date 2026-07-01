@@ -183,9 +183,15 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/deploy-staging.sh
 # Frontend separat bauen/deployen (im Frontend-Repo)
 ./build-deploy-staging.sh
 
-# Staging-DB erneut aus Prod auffrischen (anonymisiert)
+# Staging-DB erneut aus Prod auffrischen (anonymisiert).
+# Kopiert zusätzlich die ActiveStorage-Dateien (Logos/Banner) von Prod nach
+# Staging – sonst zeigt die öffentliche Ansicht gebrochene Logos.
 ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-refresh.sh
 ```
+
+> `staging-db-refresh.sh` setzt über `staging:anonymize` **alle** Login-Passwörter
+> auf `staging-password` zurück. Abweichende Test-Passwörter (z. B. für Demo-Logins)
+> müssen nach jedem Refresh erneut gesetzt werden.
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
 erst dann Merge nach `main` → Prod-`deploy.sh`.
