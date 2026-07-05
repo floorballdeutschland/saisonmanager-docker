@@ -174,6 +174,43 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compos
 > im Repo), damit ein Merge dieses PRs den Prod-nginx nicht verändert. Dadurch
 > ist die Aktivierung von Staging vom Merge- und Cert-Timing entkoppelt.
 
+### doku.saisonmanager.dev (Staging-Spiegel des Rollenhandbuchs)
+
+Analog zu `doku.saisonmanager.org`: statisches Rollenhandbuch, öffentlich ohne
+Basic Auth, aber mit `X-Robots-Tag: noindex`. Eigener Vhost in
+`doku.staging.conf`, aus demselben Grund wie `saisonmanager.staging.conf` in
+einer **eigenen** Datei statt direkt in der bestehenden Staging-Datei: ein
+`ssl_certificate`-Pfad, der beim `nginx -t` noch nicht existiert, würde sonst
+den kompletten Prod-nginx umwerfen.
+
+```bash
+# 1) DNS: A-Record doku.saisonmanager.dev -> 178.104.133.109 (beim Registrar)
+
+# 2) Cert AUSSTELLEN, BEVOR der Vhost aktiv ist (Webroot wie bei den anderen
+#    Vhosts: der Default-:80-Server liefert die ACME-Challenge bereits aus
+#    dem Prod-Frontend-Verzeichnis aus, kein separater :80-Block vorab nötig).
+git -C /opt/saisonmanager/saisonmanager-docker pull origin main   # bringt doku.staging.conf
+certbot certonly --webroot \
+  -w /opt/saisonmanager/saisonmanager-frontend \
+  -d doku.saisonmanager.dev
+
+# 3) Vhost ERST JETZT (Cert existiert) serverseitig einbinden.
+grep -q 'doku.staging.conf' /opt/saisonmanager/saisonmanager-docker/nginx/config/nginx.prod.conf \
+  || echo '    include /etc/nginx/doku.staging.conf;' \
+       >> /opt/saisonmanager/saisonmanager-docker/nginx/config/nginx.prod.conf
+# (Zeile muss INNERHALB des http{}-Blocks stehen, analog zum bestehenden
+#  saisonmanager.staging.conf-include.)
+
+# 4) nginx testen und reloaden (kein Recreate nötig, keine neuen Mounts).
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml \
+  exec nginx nginx -t -c /etc/nginx/nginx.prod.conf \
+  && docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml \
+       exec nginx nginx -s reload -c /etc/nginx/nginx.prod.conf
+
+# 5) Frontend deployen, damit /doku/ im Staging-FE-Verzeichnis existiert
+#    (im Frontend-Repo): ./build-deploy-staging.sh
+```
+
 ### Laufender Betrieb
 
 ```bash
