@@ -1,7 +1,12 @@
 #!/bin/bash
 set -e
 
-COMPOSE="docker compose -f /opt/saisonmanager/saisonmanager-docker/docker-compose.yml -f /opt/saisonmanager/saisonmanager-docker/docker-compose.prod.yml"
+# docker-compose.staging.yml MUSS mit eingebunden werden, obwohl dieses Skript
+# nur Prod-Services anfasst: der geteilte nginx bekommt dort seine Staging-
+# Volume-Mounts (saisonmanager-frontend-staging). Ohne die Datei erstellt ein
+# Prod-Deploy den nginx-Container ohne diese Mounts neu und saisonmanager.dev
+# liefert 500 (so geschehen am 2026-07-01).
+COMPOSE="docker compose -f /opt/saisonmanager/saisonmanager-docker/docker-compose.yml -f /opt/saisonmanager/saisonmanager-docker/docker-compose.prod.yml -f /opt/saisonmanager/saisonmanager-docker/docker-compose.staging.yml"
 
 # Pull docker-compose config (nginx config, etc.)
 cd /opt/saisonmanager/saisonmanager-docker
