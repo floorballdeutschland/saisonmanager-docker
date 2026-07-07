@@ -143,6 +143,12 @@ mkdir -p /opt/saisonmanager/saisonmanager-frontend-staging
 echo "SM_STAGING_SECRET_KEY_BASE=$(openssl rand -hex 64)" \
   >> /opt/saisonmanager/saisonmanager-docker/.env
 
+# 4b) Eigene Basic-Auth-Datei für Staging anlegen (untracked, wie /etc/htpasswd
+#     für Prod). Bewusst eine ANDERE Datei mit eigenen Zugangsdaten, damit
+#     Staging-Credentials nicht versehentlich Prod-Zugriff gewähren.
+htpasswd -c /opt/saisonmanager/saisonmanager-docker/nginx/config/htpasswd-staging bundes
+#   -> Passwort interaktiv setzen
+
 # 5) Let's-Encrypt-Cert für saisonmanager.dev AUSSTELLEN, BEVOR der Staging-Vhost
 #    aktiv ist. Die ACME-Challenge wird in diesem Moment vom Default-:80-Server
 #    aus dem Prod-Frontend-Verzeichnis ausgeliefert -> daher dort als Webroot.
