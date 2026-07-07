@@ -41,9 +41,12 @@ $COMPOSE run --rm -e RAILS_ENV=production rails-api-staging bundle exec rails db
 $COMPOSE up -d postgres-staging mailpit rails-api-staging
 
 # nginx-Config (neue/aktualisierte saisonmanager.dev.conf) sanft neu laden.
+# WICHTIG: -c /etc/nginx/nginx.prod.conf, sonst testet/reloadet nginx die
+# Default-nginx.conf (lokaler Dev-Wrapper mit /cert/...) und `nginx -t` schlaegt
+# IMMER fehl -> der Reload wuerde per `&&` still uebersprungen.
 # Falls neue Volume-Mounts hinzukamen, einmalig stattdessen:
 #   $COMPOSE up -d nginx
-docker exec saisonmanager_dev_nginx nginx -t && \
-  docker exec saisonmanager_dev_nginx nginx -s reload
+docker exec saisonmanager_dev_nginx nginx -t -c /etc/nginx/nginx.prod.conf && \
+  docker exec saisonmanager_dev_nginx nginx -s reload -c /etc/nginx/nginx.prod.conf
 
 echo "Staging deployed."
