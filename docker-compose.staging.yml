@@ -40,6 +40,10 @@ services:
       RAILS_SERVE_STATIC_FILES: "true"
       RAILS_LOG_TO_STDOUT: "true"
       SECRET_KEY_BASE: "${SM_STAGING_SECRET_KEY_BASE:?Bitte SM_STAGING_SECRET_KEY_BASE in .env setzen}"
+      # Frontend-Basis-URL für Links in E-Mails/öffentlichen URLs. Ohne diese
+      # Variable würde die API (RAILS_ENV=production) auf saisonmanager.org
+      # verlinken; hier auf das Staging-Frontend zeigen (API-Repo: FrontendUrl.base).
+      FRONTEND_BASE_URL: "https://saisonmanager.dev"
       # ── Externe Dienste neutralisiert ──────────────────────────────────
       PASSMEISTER_API_KEY: ""          # leer => sauber abgefangener Fehler
       SMTP_ADDRESS: "mailpit"          # statt smtp.office365.com (API-PR nötig)
