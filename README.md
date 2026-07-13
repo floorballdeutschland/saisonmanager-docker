@@ -6,9 +6,9 @@ Docker Compose setup for local development of the Floorball Saisonmanager.
 
 | Repo | Description |
 |---|---|
-| [saisonmanager](https://github.com/floorballverband-deutschland/saisonmanager) | Angular 18 frontend |
-| [saisonmanager-api](https://github.com/floorballverband-deutschland/saisonmanager-api) | Rails 7 API backend |
-| [saisonmanager-docker](https://github.com/floorballverband-deutschland/saisonmanager-docker) | This repo – Docker Compose setup |
+| [saisonmanager](https://github.com/floorballdeutschland/saisonmanager) | Angular 18 frontend |
+| [saisonmanager-api](https://github.com/floorballdeutschland/saisonmanager-api) | Rails 7 API backend |
+| [saisonmanager-docker](https://github.com/floorballdeutschland/saisonmanager-docker) | This repo – Docker Compose setup |
 
 ## Services
 
