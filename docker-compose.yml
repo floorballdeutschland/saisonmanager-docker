@@ -32,6 +32,12 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       RAILS_ENV: production # development als Entwickler nutzen
+      # Sentry-Fehler-Tracking. Der DSN kommt aus der gitignorierten .env im
+      # docker-Verzeichnis (kein Token im Repo). Ist er nicht gesetzt (z. B.
+      # lokale Entwicklung), bleibt der Wert leer und Sentry inaktiv – der
+      # Initializer (config/initializers/sentry.rb) aktiviert Sentry ohnehin
+      # nur in production/staging.
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     restart: unless-stopped
   postgres:
     image: postgres:12

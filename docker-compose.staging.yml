@@ -44,6 +44,13 @@ services:
       # Variable würde die API (RAILS_ENV=production) auf saisonmanager.org
       # verlinken; hier auf das Staging-Frontend zeigen (API-Repo: FrontendUrl.base).
       FRONTEND_BASE_URL: "https://saisonmanager.dev"
+      # Sentry: DSN aus der gitignorierten .env (dieselbe Variable wie Prod),
+      # aber als Environment "staging" getaggt. Staging läuft mit
+      # RAILS_ENV=production, daher würde Sentry die Events sonst als
+      # "production" führen und mit echten Prod-Fehlern vermischen;
+      # SENTRY_ENVIRONMENT trennt sie im Sentry-Dashboard.
+      SENTRY_DSN: "${SENTRY_DSN:-}"
+      SENTRY_ENVIRONMENT: "staging"
       # ── Externe Dienste neutralisiert ──────────────────────────────────
       PASSMEISTER_API_KEY: ""          # leer => sauber abgefangener Fehler
       SMTP_ADDRESS: "mailpit"          # statt smtp.office365.com (API-PR nötig)
