@@ -239,13 +239,18 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-ref
 > Zweitsystem; das ist bewusst so gewählt. Der frühere Anonymisierungsschritt
 > (`staging:anonymize`) entfällt.
 >
-> Weil der Klon die echten Prod-User einspielt (deren Passwörter man nicht
-> kennt), legt Schritt 3 anschließend die kuratierten Demo-Konten (ein Login je
-> Rolle, `demo_*`) über `staging:seed_demo_users` neu an – mit dem gemeinsamen
-> Test-Passwort (`STAGING_USER_PASSWORD`, Default `staging-password`). Diese
-> Demo-Konten sind das einzige, das jeder Tester frei benutzen kann; echte
-> Konten brauchen das echte Passwort. Neue Demo-Konten werden in
-> `db/staging_demo_users.json` (API-Repo) gepflegt.
+> Auf Staging sollen nur die administrativen Konten (Admin/SBK/RSK/Ansetzer) als
+> echte Logins landen. Schritt 3 (`staging:prune_limited_users`) entfernt daher
+> nach dem Klon alle Benutzerkonten, die ausschließlich VM, TM oder
+> Schiedsrichter sind (Datenminimierung).
+>
+> Weil der Klon zudem echte Prod-Passwörter einspielt (die man nicht kennt),
+> legt Schritt 4 (`staging:seed_demo_users`) die kuratierten Demo-Konten (ein
+> Login je Rolle, `demo_*`) neu an – mit dem gemeinsamen Test-Passwort
+> (`STAGING_USER_PASSWORD`, Default `staging-password`). Diese Demo-Konten sind
+> das einzige, das jeder Tester frei benutzen kann; echte Konten brauchen das
+> echte Passwort. Neue Demo-Konten werden in `db/staging_demo_users.json`
+> (API-Repo) gepflegt.
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
 erst dann Merge nach `main` → Prod-`deploy.sh`.
