@@ -6,7 +6,7 @@ Docker Compose setup for local development of the Floorball Saisonmanager.
 
 | Repo | Description |
 |---|---|
-| [saisonmanager](https://github.com/floorballdeutschland/saisonmanager) | Angular 18 frontend |
+| [saisonmanager](https://github.com/floorballdeutschland/saisonmanager) | Angular frontend |
 | [saisonmanager-api](https://github.com/floorballdeutschland/saisonmanager-api) | Rails 7 API backend |
 | [saisonmanager-docker](https://github.com/floorballdeutschland/saisonmanager-docker) | This repo – Docker Compose setup |
 
@@ -51,7 +51,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm rails-ap
 npm start   # → http://localhost:4200
 ```
 
-The frontend by default points to `https://sm.jholocal.de/api/v2/`. For fully local development, change `apiURL` in `src/environments/environment.ts` to `http://localhost:3001/api/v2/`.
+For fully local development, point `apiURL` in `src/environments/environment.ts` to `http://localhost:3001/api/v2/`.
 
 ## Compose Files
 
@@ -101,7 +101,7 @@ The deploy script:
 2. `git reset --hard origin/main` on `saisonmanager-api`
 3. Restarts `nginx` and `rails-api` containers
 
-**Production server:** `root@178.104.133.109` (SSH via YubiKey `~/.ssh/yubikey`)
+**Production server:** reachable via the `ssh saisonmanager` alias (host, user, and key live in the maintainer's local `~/.ssh/config`; hardware-key auth).
 Docker setup lives at `/opt/saisonmanager/saisonmanager-docker/`.
 
 ## Staging-Umgebung (saisonmanager.dev)
@@ -130,7 +130,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compos
 ### Einmalige Server-Einrichtung
 
 ```bash
-# 1) DNS: A-Record saisonmanager.dev -> 178.104.133.109 (beim Registrar)
+# 1) DNS: A-Record saisonmanager.dev -> <server-ip> (beim Registrar)
 
 # 2) Staging-API-Checkout auf Branch `staging`
 git clone <api-repo> /opt/saisonmanager/saisonmanager-api-staging
@@ -146,7 +146,7 @@ echo "SM_STAGING_SECRET_KEY_BASE=$(openssl rand -hex 64)" \
 # 4b) Eigene Basic-Auth-Datei für Staging anlegen (untracked, wie /etc/htpasswd
 #     für Prod). Bewusst eine ANDERE Datei mit eigenen Zugangsdaten, damit
 #     Staging-Credentials nicht versehentlich Prod-Zugriff gewähren.
-htpasswd -c /opt/saisonmanager/saisonmanager-docker/nginx/config/htpasswd-staging bundes
+htpasswd -c /opt/saisonmanager/saisonmanager-docker/nginx/config/htpasswd-staging <staging-user>
 #   -> Passwort interaktiv setzen
 
 # 5) Let's-Encrypt-Cert für saisonmanager.dev AUSSTELLEN, BEVOR der Staging-Vhost
@@ -190,7 +190,7 @@ einer **eigenen** Datei statt direkt in der bestehenden Staging-Datei: ein
 den kompletten Prod-nginx umwerfen.
 
 ```bash
-# 1) DNS: A-Record doku.saisonmanager.dev -> 178.104.133.109 (beim Registrar)
+# 1) DNS: A-Record doku.saisonmanager.dev -> <server-ip> (beim Registrar)
 
 # 2) Cert AUSSTELLEN, BEVOR der Vhost aktiv ist (Webroot wie bei den anderen
 #    Vhosts: der Default-:80-Server liefert die ACME-Challenge bereits aus
@@ -233,7 +233,8 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-ref
 ```
 
 > `staging-db-refresh.sh` setzt über `staging:anonymize` **alle** Login-Passwörter
-> auf `staging-password` zurück. Abweichende Test-Passwörter (z. B. für Demo-Logins)
+> auf ein gemeinsames Test-Passwort zurück (konfigurierbar über die Env-Variable
+> `STAGING_USER_PASSWORD`). Abweichende Test-Passwörter (z. B. für Demo-Logins)
 > müssen nach jedem Refresh erneut gesetzt werden.
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
