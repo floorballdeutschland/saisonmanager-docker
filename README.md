@@ -172,7 +172,7 @@ cd /opt/saisonmanager/saisonmanager-docker
 docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml \
   up -d nginx postgres-staging mailpit rails-api-staging
 
-# 8) Staging-DB initial mit anonymisiertem Prod-Klon befüllen
+# 8) Staging-DB initial mit 1:1-Prod-Klon befüllen
 ./scripts/staging-db-refresh.sh
 ```
 
@@ -226,16 +226,18 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/deploy-staging.sh
 # Frontend separat bauen/deployen (im Frontend-Repo)
 ./build-deploy-staging.sh
 
-# Staging-DB erneut aus Prod auffrischen (anonymisiert).
+# Staging-DB erneut aus Prod auffrischen (1:1-Klon, KEINE Anonymisierung).
 # Kopiert zusätzlich die ActiveStorage-Dateien (Logos/Banner) von Prod nach
 # Staging – sonst zeigt die öffentliche Ansicht gebrochene Logos.
 ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-refresh.sh
 ```
 
-> `staging-db-refresh.sh` setzt über `staging:anonymize` **alle** Login-Passwörter
-> auf ein gemeinsames Test-Passwort zurück (konfigurierbar über die Env-Variable
-> `STAGING_USER_PASSWORD`). Abweichende Test-Passwörter (z. B. für Demo-Logins)
-> müssen nach jedem Refresh erneut gesetzt werden.
+> `staging-db-refresh.sh` spielt Prod **1:1** ein: echte Namen, E-Mails und
+> Passwörter. Prod-User loggen sich auf `saisonmanager.dev` mit ihrem echten
+> Konto ein – geschützt allein durch Basic Auth + `noindex`, ausgehende Mails
+> fängt Mailpit ab. Der komplette Prod-Datenbestand liegt damit auf dem
+> Zweitsystem; das ist bewusst so gewählt. Der frühere Anonymisierungsschritt
+> (`staging:anonymize`) entfällt.
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
 erst dann Merge nach `main` → Prod-`deploy.sh`.
