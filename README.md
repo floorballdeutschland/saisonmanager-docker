@@ -238,6 +238,14 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-ref
 > fängt Mailpit ab. Der komplette Prod-Datenbestand liegt damit auf dem
 > Zweitsystem; das ist bewusst so gewählt. Der frühere Anonymisierungsschritt
 > (`staging:anonymize`) entfällt.
+>
+> Weil der Klon die echten Prod-User einspielt (deren Passwörter man nicht
+> kennt), legt Schritt 3 anschließend die kuratierten Demo-Konten (ein Login je
+> Rolle, `demo_*`) über `staging:seed_demo_users` neu an – mit dem gemeinsamen
+> Test-Passwort (`STAGING_USER_PASSWORD`, Default `staging-password`). Diese
+> Demo-Konten sind das einzige, das jeder Tester frei benutzen kann; echte
+> Konten brauchen das echte Passwort. Neue Demo-Konten werden in
+> `db/staging_demo_users.json` (API-Repo) gepflegt.
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
 erst dann Merge nach `main` → Prod-`deploy.sh`.
