@@ -1,14 +1,27 @@
 #!/bin/bash
 set -euo pipefail
 
-# Staging-DB mit einem ANONYMISIERTEN Klon der Prod-DB neu befüllen.
+# Staging-DB mit einem 1:1-Klon der Prod-DB neu befüllen.
+#
+# Es findet KEINE Anonymisierung mehr statt: Staging spiegelt Prod inkl. echter
+# Namen/E-Mails/Passwörter, damit sich Prod-User mit ihrem echten Konto einloggen
+# können. Geschützt wird das Zweitsystem ausschließlich durch Basic Auth + noindex;
+# ausgehende Mails fängt Mailpit ab (nichts erreicht echte Empfänger).
+#
+# Auf Staging sollen nur die administrativen Konten (Admin/SBK/RSK/Ansetzer) als
+# echte Logins landen. Schritt 3 entfernt daher die reinen VM-/TM-/Schiedsrichter-
+# Konten (Datenminimierung). Da der Klon zudem echte Prod-Passwörter einspielt,
+# die man nicht kennt, legt Schritt 4 die kuratierten Demo-Konten (ein Login je
+# Rolle, bekanntes Passwort) neu an, damit sich beliebige Rollen testen lassen.
 #
 # Ablauf:
 #   1. pg_dump aus dem Prod-Postgres (read-only auf Prod)
 #   2. Restore in den isolierten Staging-Postgres (überschreibt Staging-DB)
-#   3. Anonymisierung personenbezogener Daten via Rails-Rake-Task
-#      (staging:anonymize – im API-Repo definiert) und Reset der Test-Logins
-#   4. ActiveStorage-Dateien (Logos/Banner) von Prod nach Staging kopieren
+#   3. Reine VM-/TM-/Schiedsrichter-Konten entfernen via Rails-Rake-Task
+#      (staging:prune_limited_users – im API-Repo definiert)
+#   4. Demo-/Test-Benutzer je Rolle anlegen via Rails-Rake-Task
+#      (staging:seed_demo_users – im API-Repo definiert)
+#   5. ActiveStorage-Dateien (Logos/Banner) von Prod nach Staging kopieren
 #      – der DB-Klon bringt nur die active_storage_blobs-/-attachments-Records
 #        mit, NICHT die Dateien auf der Platte. Ohne diesen Schritt zeigt die
 #        öffentliche Ansicht gebrochene Team-/Vereins-Logos (Blob-Path -> 404).
@@ -36,21 +49,25 @@ DUMP="/tmp/sm_prod_dump_$(date +%Y%m%d_%H%M%S).sql.gz"
 # nicht nur im Erfolgsfall (set -e würde sonst den Dump auf der Platte lassen).
 trap 'rm -f "$DUMP"' EXIT
 
-echo "==> 1/4  Prod-Dump erstellen ($DUMP)"
+echo "==> 1/5  Prod-Dump erstellen ($DUMP)"
 docker exec "$PROD_PG" pg_dump -U "$DB" --no-owner --no-privileges --clean --if-exists "$DB" \
   | gzip > "$DUMP"
 
-echo "==> 2/4  Restore in Staging-Postgres"
+echo "==> 2/5  Restore in Staging-Postgres"
 # Verbindungen kappen und DB frisch aufsetzen, dann Dump einspielen.
 docker exec "$STAGING_PG" psql -U "$DB" -d postgres -c \
   "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$DB' AND pid <> pg_backend_pid();" || true
 gunzip -c "$DUMP" | docker exec -i "$STAGING_PG" psql -v ON_ERROR_STOP=1 -U "$DB" -d "$DB"
 
-echo "==> 3/4  Anonymisierung + Test-Logins"
+echo "==> 3/5  Reine VM-/TM-/Schiedsrichter-Konten entfernen"
 $COMPOSE run --rm -e RAILS_ENV=production rails-api-staging \
-  bundle exec rails staging:anonymize
+  bundle exec rails staging:prune_limited_users
 
-echo "==> 4/4  ActiveStorage-Dateien Prod -> Staging kopieren"
+echo "==> 4/5  Demo-/Test-Benutzer je Rolle anlegen"
+$COMPOSE run --rm -e RAILS_ENV=production rails-api-staging \
+  bundle exec rails staging:seed_demo_users
+
+echo "==> 5/5  ActiveStorage-Dateien Prod -> Staging kopieren"
 # Nur die Blob-Records stecken im DB-Dump; die tatsächlichen Dateien liegen bei
 # beiden Umgebungen als :local-Disk-Storage unter $STORAGE_DIR. Per tar-Stream
 # direkt zwischen den Containern kopieren (kein Zwischenspeicher auf der Platte).
@@ -59,4 +76,4 @@ docker exec "$PROD_API" tar -C "$STORAGE_DIR" -cf - . \
 echo "    Storage-Dateien kopiert: $(docker exec "$STAGING_API" sh -c "find $STORAGE_DIR -type f | wc -l")"
 
 # Dump-Aufräumen übernimmt der EXIT-trap (oben).
-echo "Staging-DB neu befüllt und anonymisiert, Storage-Dateien synchronisiert."
+echo "Staging-DB als Prod-Klon neu befüllt, reine VM/TM/Schiri-Konten entfernt, Demo-User angelegt, Storage-Dateien synchronisiert."
