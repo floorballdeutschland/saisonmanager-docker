@@ -20,7 +20,8 @@ set -euo pipefail
 #   3. Reine VM-/TM-/Schiedsrichter-Konten entfernen via Rails-Rake-Task
 #      (staging:prune_limited_users – im API-Repo definiert)
 #   4. Demo-/Test-Benutzer je Rolle anlegen via Rails-Rake-Task
-#      (staging:seed_demo_users – im API-Repo definiert)
+#      (staging:seed_demo_users – im API-Repo definiert); die Passwörter kommen
+#      aus der gitignorierten .env (siehe env_value unten)
 #   5. ActiveStorage-Dateien (Logos/Banner) von Prod nach Staging kopieren
 #      – der DB-Klon bringt nur die active_storage_blobs-/-attachments-Records
 #        mit, NICHT die Dateien auf der Platte. Ohne diesen Schritt zeigt die
@@ -44,6 +45,25 @@ STAGING_API="saisonmanager_rails_api_staging"
 STORAGE_DIR="/app/storage"
 DB="saisonmanager"
 DUMP="/tmp/sm_prod_dump_$(date +%Y%m%d_%H%M%S).sql.gz"
+ENV_FILE="$DOCKER_DIR/.env"
+
+# Passwörter der Demo-Konten (Schritt 4). Die Werte gehören NICHT ins Repo (es
+# ist öffentlich) und stehen daher in der gitignorierten .env:
+#   STAGING_USER_PASSWORD=...    gemeinsames Passwort aller demo_*-Konten
+#   STAGING_ADMIN_PASSWORD=...   abweichendes Passwort nur für demo_admin
+# Fehlt ein Wert, greift der Default des Rake-Tasks ('staging-password' bzw.
+# das gemeinsame Passwort) – der Task gibt am Ende aus, was gesetzt wurde.
+# Gelesen wird gezielt Zeile für Zeile, statt die .env zu sourcen: so landen
+# keine unbeteiligten Secrets in der Umgebung dieses Skripts.
+env_value() {
+  local key="$1"
+  [ -f "$ENV_FILE" ] || return 0
+  sed -n "s/^[[:space:]]*${key}=//p" "$ENV_FILE" | tail -n1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
+STAGING_USER_PASSWORD="$(env_value STAGING_USER_PASSWORD)"
+STAGING_ADMIN_PASSWORD="$(env_value STAGING_ADMIN_PASSWORD)"
+[ -n "$STAGING_USER_PASSWORD" ] || echo "HINWEIS: STAGING_USER_PASSWORD fehlt in $ENV_FILE – Demo-Konten bekommen das Task-Default-Passwort."
 
 # Der Dump enthält echte personenbezogene Daten – bei JEDEM Abbruch löschen,
 # nicht nur im Erfolgsfall (set -e würde sonst den Dump auf der Platte lassen).
@@ -64,7 +84,10 @@ $COMPOSE run --rm -e RAILS_ENV=production rails-api-staging \
   bundle exec rails staging:prune_limited_users
 
 echo "==> 4/5  Demo-/Test-Benutzer je Rolle anlegen"
-$COMPOSE run --rm -e RAILS_ENV=production rails-api-staging \
+$COMPOSE run --rm -e RAILS_ENV=production \
+  -e "STAGING_USER_PASSWORD=$STAGING_USER_PASSWORD" \
+  -e "STAGING_ADMIN_PASSWORD=$STAGING_ADMIN_PASSWORD" \
+  rails-api-staging \
   bundle exec rails staging:seed_demo_users
 
 echo "==> 5/5  ActiveStorage-Dateien Prod -> Staging kopieren"
