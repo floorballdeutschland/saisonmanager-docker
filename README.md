@@ -246,8 +246,12 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-ref
 >
 > Weil der Klon zudem echte Prod-Passwörter einspielt (die man nicht kennt),
 > legt Schritt 4 (`staging:seed_demo_users`) die kuratierten Demo-Konten (ein
-> Login je Rolle, `demo_*`) neu an – mit dem gemeinsamen Test-Passwort
-> (`STAGING_USER_PASSWORD`, Default `staging-password`). Diese Demo-Konten sind
+> Login je Rolle, `demo_*`) neu an – mit dem gemeinsamen Test-Passwort aus
+> `STAGING_USER_PASSWORD`; `demo_admin` bekommt abweichend
+> `STAGING_ADMIN_PASSWORD` (Vollzugriff nicht mit demselben Passwort wie die
+> Rollen-Testkonten). Beide Werte stehen in der gitignorierten `.env` und werden
+> von `staging-db-refresh.sh` an den Task durchgereicht; fehlen sie, greift der
+> Task-Default (`staging-password`). Diese Demo-Konten sind
 > das einzige, das jeder Tester frei benutzen kann; echte Konten brauchen das
 > echte Passwort. Neue Demo-Konten werden in `db/staging_demo_users.json`
 > (API-Repo) gepflegt.
