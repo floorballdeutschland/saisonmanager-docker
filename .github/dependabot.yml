@@ -1,0 +1,34 @@
+# Dependabot für das Docker-Setup.
+#
+# Anders als in saisonmanager und saisonmanager-api ist hier NICHT auf
+# Security-Updates begrenzt (open-pull-requests-limit: 0): für Docker-Images
+# gibt es keine Security-Advisories, ein Limit von 0 würde also dauerhaft
+# gar keine PRs erzeugen. Deshalb laufen hier reguläre Versions-Updates.
+#
+# Postgres-Major-Sprünge sind ausgenommen. Ein Wechsel der Major-Version ist
+# eine Datenbank-Migration und kein Dependency-Update.
+version: 2
+updates:
+  # nginx-Basisimage in nginx/nginx.Dockerfile
+  - package-ecosystem: docker
+    directory: /nginx
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+
+  # Images in docker-compose.yml und docker-compose.staging.yml
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    ignore:
+      - dependency-name: postgres
+        update-types:
+          - version-update:semver-major
