@@ -1,4 +1,4 @@
-FROM nginx:1.25
+FROM nginx:1.31
 
 RUN ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
     && dpkg-reconfigure -fnoninteractive tzdata
