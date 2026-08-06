@@ -37,23 +37,44 @@ COMPOSE="docker compose \
 
 PROD_PG="saisonmanager_postgres"
 DB="saisonmanager"
-EXPORT="/tmp/sm_prod_users_$(date +%Y%m%d_%H%M%S).json"
 
+# Ein unbekanntes Argument darf nicht stillschweigend zum scharfen Lauf werden:
+# Wer sich bei `--dry-run` vertippt, bekäme sonst genau das Gegenteil dessen,
+# was er wollte, und als einzigen Hinweis die fehlende Zeile unten.
 DRY_RUN="false"
-if [ "${1:-}" = "--dry-run" ]; then
-  DRY_RUN="true"
-  echo "== Probelauf: der Rake-Task schreibt nichts =="
+case "${1:-}" in
+  --dry-run)
+    DRY_RUN="true"
+    echo "== Probelauf: der Rake-Task schreibt nichts =="
+    ;;
+  "") ;;
+  *)
+    echo "ABBRUCH: unbekanntes Argument '$1'. Erlaubt ist nur --dry-run." >&2
+    exit 2
+    ;;
+esac
+if [ "$#" -gt 1 ]; then
+  echo "ABBRUCH: zu viele Argumente." >&2
+  exit 2
 fi
 
-# Der Export enthält E-Mail-Adressen und Passwort-Hashes – bei JEDEM Abbruch
-# löschen, nicht nur im Erfolgsfall (wie beim Dump in staging-db-refresh.sh).
+# Der Export enthält die E-Mail-Adressen und Passwort-Hashes aller Prod-Konten.
+# mktemp legt ihn mit 0600 an, statt ihn per Umleitung unter der Standard-Umask
+# (auf dem Server 0644) für jedes lokale Konto lesbar zu machen.
+EXPORT="$(mktemp /tmp/sm_prod_users_XXXXXX.json)"
+
+# Bei JEDEM Abbruch löschen, nicht nur im Erfolgsfall (wie beim Dump in
+# staging-db-refresh.sh).
 trap 'rm -f "$EXPORT"' EXIT
 
 echo "==> 1/2  Benutzerkonten aus dem Prod-Postgres lesen"
 # Nur die Spalten, die der Task übernimmt. Nicht dabei: id (Staging vergibt
 # eigene), teams (Team-IDs sind zwischen den Ständen nicht stabil) und die
 # Felder laufender Vorgänge (Passwort-Reset, E-Mail-Bestätigung).
-docker exec "$PROD_PG" psql -U "$DB" -d "$DB" -At -c \
+# ON_ERROR_STOP, weil `psql -c` einen SQL-Fehler sonst mit Exit 0 quittiert:
+# Nach einer umbenannten Spalte stünde hier eine leere Datei und der Abbruch
+# unten meldete „Export ist leer" statt der eigentlichen Ursache.
+docker exec "$PROD_PG" psql -v ON_ERROR_STOP=1 -U "$DB" -d "$DB" -At -c \
   "SELECT COALESCE(json_agg(t), '[]'::json) FROM (
      SELECT user_name, email, first_name, last_name, password_digest, permissions,
             language, receive_info_mails, privacy_approved, description,
@@ -68,7 +89,15 @@ if [ ! -s "$EXPORT" ] || [ "$(head -c 2 "$EXPORT")" = "[]" ]; then
   echo "ABBRUCH: Der Export ist leer – kein plausibler Prod-Stand." >&2
   exit 1
 fi
-echo "    Export geschrieben ($(wc -c < "$EXPORT") Bytes)"
+
+# Abgeschnitten wird sonst erst im Container als „kein gültiges JSON" sichtbar,
+# was nach einem Fehler im Task aussieht und nicht nach einem halben Export.
+if [ "$(tail -c 2 "$EXPORT" | tr -d '\n')" != "]" ]; then
+  echo "ABBRUCH: Der Export endet nicht auf ']' – vermutlich abgeschnitten." >&2
+  exit 1
+fi
+
+echo "    Export geschrieben ($(wc -c < "$EXPORT") Bytes, $(grep -o '"user_name"' "$EXPORT" | wc -l) Konten)"
 
 echo "==> 2/2  Abgleich in der Staging-Datenbank"
 # -T: keine TTY, sonst kommt der Export nicht als STDIN im Container an.

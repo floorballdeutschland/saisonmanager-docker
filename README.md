@@ -272,7 +272,13 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-sync-u
 > auf Staging nachvollzogen; entfernen lässt es sich danach mit
 > `staging:prune_limited_users`. Konten, die es nur noch auf Staging gibt,
 > werden gemeldet und nicht gelöscht. `--dry-run` zeigt nur, was passieren
-> würde.
+> würde, und prüft dabei mit, ob die Konten überhaupt speicherbar wären.
+> Scheitert ein Konto, läuft der Rest durch, die Zusammenfassung nennt es unter
+> `FEHLER` und das Skript endet mit einem Fehler-Exit.
+>
+> Das Skript nutzt den vorhandenen Staging-Container. Der zieht `origin/staging`
+> per `reset --hard`, der Rake-Task muss also dort liegen und `deploy-staging.sh`
+> gelaufen sein, sonst quittiert es mit „Don't know how to build task".
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
 erst dann Merge nach `main` → Prod-`deploy.sh`.
