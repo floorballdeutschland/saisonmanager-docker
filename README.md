@@ -230,6 +230,10 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/deploy-staging.sh
 # Kopiert zusätzlich die ActiveStorage-Dateien (Logos/Banner) von Prod nach
 # Staging – sonst zeigt die öffentliche Ansicht gebrochene Logos.
 ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-refresh.sh
+
+# Nur die Benutzerkonten nachziehen, Rest der Staging-DB unberührt lassen
+ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-sync-users.sh
+ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-sync-users.sh --dry-run
 ```
 
 > `staging-db-refresh.sh` spielt Prod **1:1** ein: echte Namen, E-Mails und
@@ -255,6 +259,26 @@ ssh saisonmanager /opt/saisonmanager/saisonmanager-docker/scripts/staging-db-ref
 > das einzige, das jeder Tester frei benutzen kann; echte Konten brauchen das
 > echte Passwort. Neue Demo-Konten werden in `db/staging_demo_users.json`
 > (API-Repo) gepflegt.
+
+> **Konten zwischen zwei Refreshes nachziehen:** `staging-sync-users.sh` gleicht
+> allein die `users`-Tabelle ab (Prod-Export per `SELECT` → Rake-Task
+> `staging:sync_users` im Staging-Container). Gedacht für den Normalfall, dass
+> auf Prod ein neues SBK-Konto entstanden ist oder sich Rollen geändert haben,
+> die Testdaten auf Staging aber stehen bleiben sollen — ein voller Refresh
+> verwirft sie. Abgeglichen wird über `user_name`, bestehende Konten behalten
+> ihre Staging-ID (Tracking-Spalten wie `uploaded_by_id` zeigen darauf),
+> `demo_*` bleibt unangetastet, und reine VM-/TM-/Schiedsrichter-Konten kommen
+> gar nicht erst dazu. Verliert ein Konto auf Prod seine Rolle, wird das auch
+> auf Staging nachvollzogen; entfernen lässt es sich danach mit
+> `staging:prune_limited_users`. Konten, die es nur noch auf Staging gibt,
+> werden gemeldet und nicht gelöscht. `--dry-run` zeigt nur, was passieren
+> würde, und prüft dabei mit, ob die Konten überhaupt speicherbar wären.
+> Scheitert ein Konto, läuft der Rest durch, die Zusammenfassung nennt es unter
+> `FEHLER` und das Skript endet mit einem Fehler-Exit.
+>
+> Das Skript nutzt den vorhandenen Staging-Container. Der zieht `origin/staging`
+> per `reset --hard`, der Rake-Task muss also dort liegen und `deploy-staging.sh`
+> gelaufen sein, sonst quittiert es mit „Don't know how to build task".
 
 **Workflow:** PR → Merge nach `staging` → auf `saisonmanager.dev` testen →
 erst dann Merge nach `main` → Prod-`deploy.sh`.
