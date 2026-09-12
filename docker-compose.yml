@@ -36,6 +36,23 @@ services:
       # Initializer (config/initializers/sentry.rb) aktiviert Sentry ohnehin
       # nur in production/staging.
       SENTRY_DSN: "${SENTRY_DSN:-}"
+    # Dateideskriptoren. Ohne diesen Eintrag erbt der Container den
+    # Docker-Standard von 1024 weichen Deskriptoren -- fuer einen Webserver
+    # viel zu wenig. Am 1. Bundesliga-Spieltag (12.09.2026) war die Grenze
+    # dauerhaft erreicht: Puma konnte keine Verbindungen mehr annehmen und
+    # meldete rund 33 mal pro Sekunde
+    #   Listen loop: #<Errno::EMFILE: Too many open files - accept(2)>
+    # waehrend rund 1350 Verbindungen unbeantwortet in der Accept-Queue des
+    # Kernels standen. Fuer die Nutzer sah das nach einem haengenden Server
+    # aus; der Median der Antwortzeiten fiel nach dem Anheben von ueber drei
+    # Sekunden auf 25 ms.
+    #
+    # nginx traegt aus demselben Grund worker_rlimit_nofile 65535
+    # (nginx/config/nginx.conf), nur die API war nie nachgezogen worden.
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     restart: unless-stopped
   postgres:
     image: postgres:12
