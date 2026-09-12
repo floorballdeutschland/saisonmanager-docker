@@ -42,18 +42,36 @@ services:
       # Bundesliga-Spieltag (12.09.2026) lag sie dauerhaft bei 100 % CPU,
       # waehrend sieben Kerne unbeschaeftigt blieben.
       #
-      # Vier statt acht: Die Worker teilen sich die Maschine mit Postgres und
-      # nginx, und der Engpass war nie die schiere Zahl, sondern dass es
-      # ueberhaupt nur einen gab. Vier Worker mal fuenf Threads reichen mit
-      # grossem Abstand -- gemessen liefen bei 46 Requests/s und 65 ms
-      # Mittelwert nach Little's Law rund drei Anfragen gleichzeitig.
+      # Sechs statt vier. Die urspruengliche Begruendung fuer vier lautete, die
+      # Worker teilten sich die Maschine mit Postgres und nginx -- das war eine
+      # Vermutung und ist durch einen Lasttest am 13.09.2026 widerlegt. Bei 80
+      # gleichzeitigen Verbindungen gegen Produktion:
+      #
+      #   rails_api   340 %   <- ausgereizt, von 400 % moeglich
+      #   postgres     25 %
+      #   redis         9 %
+      #   nginx         3 %
+      #   ------------------
+      #               ~377 % von 800 %  -> gut vier Kerne lagen brach
+      #
+      # Der Engpass ist Puma, nicht die Nebendienste. Mit vier Workern lag der
+      # Durchsatz bei rund 74 Anfragen/s (gemessene Spieltagsspitze: 46/s).
+      #
+      # Sechs und nicht acht, damit Postgres, nginx, Redis und das Betriebssystem
+      # nicht um die letzten Kerne konkurrieren -- der Lasttest selbst lief auf
+      # derselben Maschine und hat der Anwendung CPU weggenommen, die echte
+      # Kapazitaet liegt also ueber dem gemessenen Wert.
+      #
+      # Datenbankverbindungen: 6 x RAILS_MAX_THREADS (5) = 30 je Prozesspool,
+      # gegen max_connections 100 von postgres:12. Speicher mit preload_app!
+      # rund 1,6 GiB bei 12,8 GiB frei.
       #
       # Setzt config/environments/production.rb im API-Repo voraus, wo der
       # Cache seit dem Wechsel auf file_store von allen Workern geteilt wird.
       # Mit dem frueheren memory_store wuerde die Invalidierung nach einem
       # Spieleintrag nur einen der vier Prozesse erreichen und die uebrigen
       # lieferten bis zu fuenf Minuten alte Tabellen und Spielstaende aus.
-      WEB_CONCURRENCY: "4"
+      WEB_CONCURRENCY: "6"
       # Gemeinsamer Cache aller vier Worker. OHNE diese Variable faellt die API
       # auf den prozesslokalen :memory_store zurueck, und
       # config/initializers/shared_cache_required.rb im API-Repo bricht den
