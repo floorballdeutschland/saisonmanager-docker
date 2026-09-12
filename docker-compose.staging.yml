@@ -62,6 +62,12 @@ services:
       # dass Staging denselben Betriebsmodus abbildet und ein Fehler im
       # Cluster-Betrieb hier auffaellt und nicht erst auf Produktion.
       WEB_CONCURRENCY: "2"
+      # Eigene Redis-Datenbank (Index 1) im selben Container wie Produktion.
+      # Getrennt, damit ein Staging-Lauf keine Prod-Eintraege verdraengt oder
+      # ueberschreibt -- die Schluessel sind in beiden Staecken dieselben
+      # (leagues/<id>/table und so weiter), ein gemeinsamer Index waere ein
+      # stiller Datenmischer.
+      REDIS_URL: "redis://redis:6379/1"
     command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
     depends_on:
       - postgres-staging
