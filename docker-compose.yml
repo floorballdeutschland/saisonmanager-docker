@@ -36,9 +36,11 @@ services:
       # Initializer (config/initializers/sentry.rb) aktiviert Sentry ohnehin
       # nur in production/staging.
       SENTRY_DSN: "${SENTRY_DSN:-}"
-    # Dateideskriptoren. Ohne diesen Eintrag erbt der Container den
-    # Docker-Standard von 1024 weichen Deskriptoren -- fuer einen Webserver
-    # viel zu wenig. Am 1. Bundesliga-Spieltag (12.09.2026) war die Grenze
+    # Dateideskriptoren. Ohne diesen Eintrag erbt der Container das Limit des
+    # Docker-Daemons; auf dem Prod-Host sind das gemessene 1024 weiche
+    # Deskriptoren -- fuer einen Webserver viel zu wenig. (Kein allgemeiner
+    # Docker-Standard: auf dem Arbeitsplatzrechner liefert dasselbe Kommando
+    # 1048576.) Am 1. Bundesliga-Spieltag (12.09.2026) war die Grenze
     # dauerhaft erreicht: Puma konnte keine Verbindungen mehr annehmen und
     # meldete rund 33 mal pro Sekunde
     #   Listen loop: #<Errno::EMFILE: Too many open files - accept(2)>
@@ -59,10 +61,19 @@ services:
     # stimmt wieder etwas grundsaetzlich nicht. Ein sehr hohes Limit wuerde
     # genau diese Warnung beseitigen -- das alte Limit war der Grund, warum
     # das Leck ueberhaupt auffiel.
+    #
+    # Das HARTE Limit bleibt bei 524288 und wird bewusst NICHT mitgesenkt.
+    # Genau davon lebte die Rettung am Spieltag: prlimit --nofile am laufenden
+    # Prozess hebt das weiche Limit ohne Neustart an, aber nur bis zum harten.
+    # Ein hard: 8192 haette diesen Notausgang auf denselben Wert zugemauert,
+    # den es zu ueberschreiten gilt.
+    #
+    # Zu beachten: rlimit gilt je Prozess. Mit WEB_CONCURRENCY hat jeder Worker
+    # eigene 8192, die Warnschwelle liegt in Summe also hoeher.
     ulimits:
       nofile:
         soft: 8192
-        hard: 8192
+        hard: 524288
     restart: unless-stopped
   postgres:
     image: postgres:12
