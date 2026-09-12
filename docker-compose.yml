@@ -36,6 +36,24 @@ services:
       # Initializer (config/initializers/sentry.rb) aktiviert Sentry ohnehin
       # nur in production/staging.
       SENTRY_DSN: "${SENTRY_DSN:-}"
+      # Anzahl der Puma-Worker-Prozesse. MRI-Ruby fuehrt wegen des GVL je
+      # Prozess nur auf einem Kern Ruby-Code aus; ohne diesen Wert laeuft die
+      # API einprozessig und nutzt einen der acht Kerne des Servers. Am 1.
+      # Bundesliga-Spieltag (12.09.2026) lag sie dauerhaft bei 100 % CPU,
+      # waehrend sieben Kerne unbeschaeftigt blieben.
+      #
+      # Vier statt acht: Die Worker teilen sich die Maschine mit Postgres und
+      # nginx, und der Engpass war nie die schiere Zahl, sondern dass es
+      # ueberhaupt nur einen gab. Vier Worker mal fuenf Threads reichen mit
+      # grossem Abstand -- gemessen liefen bei 46 Requests/s und 65 ms
+      # Mittelwert nach Little's Law rund drei Anfragen gleichzeitig.
+      #
+      # Setzt config/environments/production.rb im API-Repo voraus, wo der
+      # Cache seit dem Wechsel auf file_store von allen Workern geteilt wird.
+      # Mit dem frueheren memory_store wuerde die Invalidierung nach einem
+      # Spieleintrag nur einen der vier Prozesse erreichen und die uebrigen
+      # lieferten bis zu fuenf Minuten alte Tabellen und Spielstaende aus.
+      WEB_CONCURRENCY: "4"
     restart: unless-stopped
   postgres:
     image: postgres:12

@@ -57,6 +57,11 @@ services:
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""
       SMTP_PASSWORD: ""
+      # Zwei Worker, siehe die Begruendung in docker-compose.yml. Weniger als
+      # auf Produktion, weil hier keine Last anliegt -- es geht nur darum,
+      # dass Staging denselben Betriebsmodus abbildet und ein Fehler im
+      # Cluster-Betrieb hier auffaellt und nicht erst auf Produktion.
+      WEB_CONCURRENCY: "2"
     command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
     depends_on:
       - postgres-staging
