@@ -57,6 +57,14 @@ services:
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""
       SMTP_PASSWORD: ""
+    # Wie im Basis-Stack (docker-compose.yml, den auch Produktion nutzt): 1024
+    # weichen Dateideskriptoren reicht fuer einen Webserver nicht. Hier vor
+    # allem, damit Staging das Verhalten von Produktion abbildet und ein
+    # Lasttest nicht an einer Grenze scheitert, die es auf Prod nicht gibt.
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 524288
     command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
     depends_on:
       - postgres-staging
