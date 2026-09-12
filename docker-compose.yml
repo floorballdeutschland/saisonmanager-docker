@@ -49,10 +49,20 @@ services:
     #
     # nginx traegt aus demselben Grund worker_rlimit_nofile 65535
     # (nginx/config/nginx.conf), nur die API war nie nachgezogen worden.
+    #
+    # Warum 8192 und nicht mehr: Der legitime Bedarf ist klein. Bei den
+    # gemessenen 46 Requests/s und 65 ms Mittelwert laufen nach Little's Law
+    # rund drei Anfragen gleichzeitig. Die 1024 wurden nicht von echter Last
+    # gesprengt, sondern vom Socket-Leck aus proxy.conf und vom Rueckstau.
+    # 8192 laesst also reichlich Luft fuer echte Spitzen (Playoffs, Finaltag)
+    # und bleibt zugleich ein Fruehwarnmelder: Wird diese Grenze je erreicht,
+    # stimmt wieder etwas grundsaetzlich nicht. Ein sehr hohes Limit wuerde
+    # genau diese Warnung beseitigen -- das alte Limit war der Grund, warum
+    # das Leck ueberhaupt auffiel.
     ulimits:
       nofile:
-        soft: 65535
-        hard: 65535
+        soft: 8192
+        hard: 8192
     restart: unless-stopped
   postgres:
     image: postgres:12

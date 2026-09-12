@@ -63,8 +63,8 @@ services:
     # Lasttest nicht an einer Grenze scheitert, die es auf Prod nicht gibt.
     ulimits:
       nofile:
-        soft: 65535
-        hard: 65535
+        soft: 8192
+        hard: 8192
     command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
     depends_on:
       - postgres-staging
