@@ -62,15 +62,47 @@ services:
       # dass Staging denselben Betriebsmodus abbildet und ein Fehler im
       # Cluster-Betrieb hier auffaellt und nicht erst auf Produktion.
       WEB_CONCURRENCY: "2"
-      # Eigene Redis-Datenbank (Index 1) im selben Container wie Produktion.
-      # Getrennt, damit ein Staging-Lauf keine Prod-Eintraege verdraengt oder
-      # ueberschreibt -- die Schluessel sind in beiden Staecken dieselben
-      # (leagues/<id>/table und so weiter), ein gemeinsamer Index waere ein
-      # stiller Datenmischer.
-      REDIS_URL: "redis://redis:6379/1"
+      # EIGENER Redis-Container, nicht der Prod-Container mit anderem
+      # Datenbank-Index. Der Index trennt die Schluessel, aber nicht den
+      # Speicher: maxmemory und maxmemory-policy gelten je INSTANZ, und
+      # allkeys-lru waehlt sein Opfer ueber alle Datenbanken hinweg.
+      # Nachgestellt mit 8 MB Grenze: 2000 Eintraege nach Index 1 geschrieben,
+      # danach war Index 0 vollstaendig leer -- 1621 verdraengte Schluessel,
+      # ohne dass je einer in Index 0 geschrieben wurde. Ein Lasttest auf
+      # Staging haette damit den Prod-Cache geleert, einschliesslich der
+      # Rack::Attack-Drosselungszaehler (die liegen per Default in
+      # Rails.cache) -- also der Bremsen fuer mail-trigger/ip,
+      # api-key-application/ip und overlay/token.
+      #
+      # Dazu die Datenschutzseite: Redis hat hier keine Authentifizierung
+      # (protected-mode ist im offiziellen Image aus, kein requirepass), und
+      # ACLs koennen nicht nach Datenbank-Index einschraenken. Der
+      # Staging-Container haette im selben Netz den Prod-Cache im Klartext
+      # lesen koennen -- Ligatabellen, settings/current, Spielerstatistiken.
+      # Staging haelt bewusst einen ANONYMISIERTEN Klon; diese Grenze endete
+      # sonst an genau dieser Stelle.
+      REDIS_URL: "redis://redis-staging:6379/0"
     command: bash -c "rm -f /app/tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
     depends_on:
-      - postgres-staging
+      postgres-staging:
+        condition: service_started
+      redis-staging:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis-staging:
+    image: redis:7-alpine
+    container_name: saisonmanager_redis_staging
+    # Deutlich kleiner als Produktion: Staging traegt keine Last, der Cache
+    # muss nur denselben Betriebsmodus abbilden. Ein leerer Container belegt
+    # gemessen rund 14 MB.
+    command: redis-server --save "" --appendonly no --maxmemory 32mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   postgres-staging:

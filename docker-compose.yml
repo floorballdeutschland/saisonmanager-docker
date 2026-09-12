@@ -61,6 +61,17 @@ services:
       # prozesslokalem Cache ist still falsch und wuerde veraltete Tabellen und
       # Spielstaende ausliefern, statt sichtbar zu scheitern.
       REDIS_URL: "redis://redis:6379/0"
+    # ZWINGEND, nicht Kosmetik: deploy.sh startet eine EXPLIZITE Serviceliste
+    # ("up -d nginx rails-api"). Ohne depends_on zieht kein Deploy den
+    # Redis-Container hoch, und der Ausfall bliebe unsichtbar -- der Riegel im
+    # API-Repo prueft nur die Store-KLASSE, ein ins Leere zeigender
+    # RedisCacheStore kommt durch, und der error_handler macht aus jedem
+    # Verbindungsfehler ein "nicht im Cache". Die API liefe dann fehlerfrei und
+    # wuerde jede Ligatabelle bei jedem Request neu rechnen -- schlechter als
+    # der Zustand vor dieser PR-Serie.
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
   redis:
     image: redis:7-alpine
@@ -78,6 +89,15 @@ services:
     # 128 MB lief und die langlebigen Statistik-Caches (bis zu 1 Woche
     # Standzeit) Platz behalten sollen.
     command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # Damit depends_on: service_healthy greift und rails-api nicht Sekunden vor
+    # dem Cache startet -- in diesem Fenster liefe jeder Cache-Zugriff in den
+    # error_handler und meldete nach Sentry.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     # Nicht nach aussen veroeffentlicht: erreichbar nur im Compose-Netz. Redis
     # hat keine Authentifizierung konfiguriert, ein offener Port waere ein
     # unmittelbares Risiko.
