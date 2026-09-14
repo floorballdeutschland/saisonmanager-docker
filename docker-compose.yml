@@ -56,6 +56,127 @@ services:
       YOUTUBE_CLIENT_ID: "${YOUTUBE_CLIENT_ID:-}"
       YOUTUBE_CLIENT_SECRET: "${YOUTUBE_CLIENT_SECRET:-}"
       YOUTUBE_REFRESH_TOKEN: "${YOUTUBE_REFRESH_TOKEN:-}"
+      # Anzahl der Puma-Worker-Prozesse. MRI-Ruby fuehrt wegen des GVL je
+      # Prozess nur auf einem Kern Ruby-Code aus; ohne diesen Wert laeuft die
+      # API einprozessig und nutzt einen der acht Kerne des Servers. Am 1.
+      # Bundesliga-Spieltag (12.09.2026) lag sie dauerhaft bei 100 % CPU,
+      # waehrend sieben Kerne unbeschaeftigt blieben.
+      #
+      # Sechs statt vier. Die urspruengliche Begruendung fuer vier lautete, die
+      # Worker teilten sich die Maschine mit Postgres und nginx -- das war eine
+      # Vermutung und ist durch einen Lasttest am 13.09.2026 widerlegt. Bei 80
+      # gleichzeitigen Verbindungen gegen Produktion:
+      #
+      #   rails_api   340 %   <- ausgereizt, von 400 % moeglich
+      #   postgres     25 %
+      #   redis         9 %
+      #   nginx         3 %
+      #   ------------------
+      #               ~377 % von 800 %  -> gut vier Kerne lagen brach
+      #
+      # Der Engpass ist Puma, nicht die Nebendienste. Mit vier Workern lag der
+      # Durchsatz bei rund 74 Anfragen/s (gemessene Spieltagsspitze: 46/s).
+      #
+      # Sechs und nicht acht, damit Postgres, nginx, Redis und das Betriebssystem
+      # nicht um die letzten Kerne konkurrieren -- der Lasttest selbst lief auf
+      # derselben Maschine und hat der Anwendung CPU weggenommen, die echte
+      # Kapazitaet liegt also ueber dem gemessenen Wert.
+      #
+      # Datenbankverbindungen: 6 x RAILS_MAX_THREADS (5) = 30 je Prozesspool,
+      # gegen max_connections 100 von postgres:12. Speicher mit preload_app!
+      # rund 1,6 GiB bei 12,8 GiB frei.
+      #
+      # Setzt config/environments/production.rb im API-Repo voraus, wo der
+      # Cache seit dem Wechsel auf file_store von allen Workern geteilt wird.
+      # Mit dem frueheren memory_store wuerde die Invalidierung nach einem
+      # Spieleintrag nur einen der vier Prozesse erreichen und die uebrigen
+      # lieferten bis zu fuenf Minuten alte Tabellen und Spielstaende aus.
+      WEB_CONCURRENCY: "6"
+      # Gemeinsamer Cache aller vier Worker. OHNE diese Variable faellt die API
+      # auf den prozesslokalen :memory_store zurueck, und
+      # config/initializers/shared_cache_required.rb im API-Repo bricht den
+      # Start ab -- absichtlich: Die Kombination aus Workern und
+      # prozesslokalem Cache ist still falsch und wuerde veraltete Tabellen und
+      # Spielstaende ausliefern, statt sichtbar zu scheitern.
+      REDIS_URL: "redis://redis:6379/0"
+    # ZWINGEND, nicht Kosmetik: deploy.sh startet eine EXPLIZITE Serviceliste
+    # ("up -d nginx rails-api"). Ohne depends_on zieht kein Deploy den
+    # Redis-Container hoch, und der Ausfall bliebe unsichtbar -- der Riegel im
+    # API-Repo prueft nur die Store-KLASSE, ein ins Leere zeigender
+    # RedisCacheStore kommt durch, und der error_handler macht aus jedem
+    # Verbindungsfehler ein "nicht im Cache". Die API liefe dann fehlerfrei und
+    # wuerde jede Ligatabelle bei jedem Request neu rechnen -- schlechter als
+    # der Zustand vor dieser PR-Serie.
+    # Dateideskriptoren. Ohne diesen Eintrag erbt der Container das Limit des
+    # Docker-Daemons; auf dem Prod-Host sind das gemessene 1024 weiche
+    # Deskriptoren -- fuer einen Webserver viel zu wenig. (Kein allgemeiner
+    # Docker-Standard: auf dem Arbeitsplatzrechner liefert dasselbe Kommando
+    # 1048576.) Am 1. Bundesliga-Spieltag (12.09.2026) war die Grenze
+    # dauerhaft erreicht: Puma konnte keine Verbindungen mehr annehmen und
+    # meldete rund 33 mal pro Sekunde
+    #   Listen loop: #<Errno::EMFILE: Too many open files - accept(2)>
+    # waehrend rund 1350 Verbindungen unbeantwortet in der Accept-Queue des
+    # Kernels standen. Fuer die Nutzer sah das nach einem haengenden Server
+    # aus; der Median der Antwortzeiten fiel nach dem Anheben von ueber drei
+    # Sekunden auf 25 ms.
+    #
+    # nginx traegt aus demselben Grund worker_rlimit_nofile 65535
+    # (nginx/config/nginx.conf), nur die API war nie nachgezogen worden.
+    #
+    # Warum 8192 und nicht mehr: Der legitime Bedarf ist klein. Bei den
+    # gemessenen 46 Requests/s und 65 ms Mittelwert laufen nach Little's Law
+    # rund drei Anfragen gleichzeitig. Die 1024 wurden nicht von echter Last
+    # gesprengt, sondern vom Socket-Leck aus proxy.conf und vom Rueckstau.
+    # 8192 laesst also reichlich Luft fuer echte Spitzen (Playoffs, Finaltag)
+    # und bleibt zugleich ein Fruehwarnmelder: Wird diese Grenze je erreicht,
+    # stimmt wieder etwas grundsaetzlich nicht. Ein sehr hohes Limit wuerde
+    # genau diese Warnung beseitigen -- das alte Limit war der Grund, warum
+    # das Leck ueberhaupt auffiel.
+    #
+    # Das HARTE Limit bleibt bei 524288 und wird bewusst NICHT mitgesenkt.
+    # Genau davon lebte die Rettung am Spieltag: prlimit --nofile am laufenden
+    # Prozess hebt das weiche Limit ohne Neustart an, aber nur bis zum harten.
+    # Ein hard: 8192 haette diesen Notausgang auf denselben Wert zugemauert,
+    # den es zu ueberschreiten gilt.
+    #
+    # Zu beachten: rlimit gilt je Prozess. Mit WEB_CONCURRENCY hat jeder Worker
+    # eigene 8192, die Warnschwelle liegt in Summe also hoeher.
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 524288
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    container_name: saisonmanager_redis
+    # Reiner Cache, keine Persistenz: Der Inhalt ist jederzeit neu berechenbar,
+    # ein verlorener Cache kostet einmalig Rechenzeit und keine Daten. Deshalb
+    # kein Volume und kein Speichern auf Platte (--save "").
+    #
+    # maxmemory mit Verdraengung ist der Grund, warum hier Redis steht und
+    # nicht ein Dateiverzeichnis: Versionierte Schluessel wie
+    # games/<id>/full_hash/<updated_at> werden nach einer Aenderung nie wieder
+    # gelesen und daher auch nie abgeraeumt -- ein Verzeichnis waechst damit
+    # unbegrenzt, Redis wirft bei 256 MB den am laengsten ungenutzten Eintrag
+    # heraus. 256 MB, weil der frueher genutzte :memory_store bewusst mit
+    # 128 MB lief und die langlebigen Statistik-Caches (bis zu 1 Woche
+    # Standzeit) Platz behalten sollen.
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # Damit depends_on: service_healthy greift und rails-api nicht Sekunden vor
+    # dem Cache startet -- in diesem Fenster liefe jeder Cache-Zugriff in den
+    # error_handler und meldete nach Sentry.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    # Nicht nach aussen veroeffentlicht: erreichbar nur im Compose-Netz. Redis
+    # hat keine Authentifizierung konfiguriert, ein offener Port waere ein
+    # unmittelbares Risiko.
     restart: unless-stopped
   postgres:
     image: postgres:12

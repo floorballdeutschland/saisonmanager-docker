@@ -99,7 +99,8 @@ ssh saisonmanager /opt/saisonmanager/deploy.sh
 The deploy script:
 1. `git pull` on this repo
 2. `git reset --hard origin/main` on `saisonmanager-api`
-3. Restarts `nginx` and `rails-api` containers
+3. Restarts `nginx` and `rails-api` containers (`rails-api` pulls up `redis`
+   via `depends_on`; the cache service is not named explicitly)
 
 **Production server:** reachable via the `ssh saisonmanager` alias (host, user, and key live in the maintainer's local `~/.ssh/config`; hardware-key auth).
 Docker setup lives at `/opt/saisonmanager/saisonmanager-docker/`.
@@ -206,6 +207,11 @@ grep -q 'saisonmanager.staging.conf' /opt/saisonmanager/saisonmanager-docker/ngi
 cd /opt/saisonmanager/saisonmanager-docker
 docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.staging.yml \
   up -d nginx postgres-staging mailpit rails-api-staging
+# redis-staging wird ueber depends_on von rails-api-staging mitgestartet.
+# Es ist bewusst ein EIGENER Container und nicht der Prod-Redis mit anderem
+# Datenbank-Index: maxmemory gilt je Instanz, ein Staging-Lauf haette sonst
+# den Prod-Cache verdraengt, und ohne Authentifizierung haette Staging die
+# Prod-Eintraege im Klartext lesen koennen.
 
 # 8) Staging-DB initial mit 1:1-Prod-Klon befüllen
 ./scripts/staging-db-refresh.sh
