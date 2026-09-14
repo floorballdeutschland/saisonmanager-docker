@@ -53,6 +53,16 @@ services:
       SENTRY_ENVIRONMENT: "staging"
       # ── Externe Dienste neutralisiert ──────────────────────────────────
       PASSMEISTER_API_KEY: ""          # leer => sauber abgefangener Fehler
+      # YouTube: ausdruecklich leer, nicht bloss weggelassen. Staging traegt
+      # einen anonymisierten Klon der Prod-Daten -- die Spiele darin sind
+      # dieselben, und mit echten Zugangsdaten wuerde der Waechter dieses
+      # Stacks laufende Uebertragungen des Verbandskanals beenden. Leer statt
+      # weggelassen aus demselben Grund wie bei Passmeister: Ein spaeteres
+      # `extends` oder ein Start ohne dieses Overlay soll sie nicht doch
+      # durchreichen.
+      YOUTUBE_CLIENT_ID: ""
+      YOUTUBE_CLIENT_SECRET: ""
+      YOUTUBE_REFRESH_TOKEN: ""
       SMTP_ADDRESS: "mailpit"          # statt smtp.office365.com (API-PR nötig)
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""

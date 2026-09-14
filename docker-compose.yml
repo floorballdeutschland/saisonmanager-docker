@@ -36,6 +36,26 @@ services:
       # Initializer (config/initializers/sentry.rb) aktiviert Sentry ohnehin
       # nur in production/staging.
       SENTRY_DSN: "${SENTRY_DSN:-}"
+      # Zugang zum YouTube-Kanal des Verbands fuer den Livestream-Waechter
+      # (rake streaming:watchdog, Cronjob alle fuenf Minuten). Beendet eine
+      # laufende Uebertragung, wenn seit 15 Minuten kein Signal mehr anliegt
+      # und der Spielbericht geschlossen ist.
+      #
+      # Wie der Sentry-DSN aus der gitignorierten .env in diesem Verzeichnis.
+      # Fehlt eine der drei Angaben, meldet der Task das und tut nichts --
+      # genau der gewollte Zustand ueberall ausser auf Produktion.
+      #
+      # BEWUSST NICHT IN docker-compose.staging.yml: Der Staging-Stack traegt
+      # einen anonymisierten Klon der Produktionsdaten. Mit diesen Zugangsdaten
+      # wuerde sein Waechter echte, laufende Uebertragungen des Verbandskanals
+      # beenden -- die Spiele darin sind dieselben.
+      #
+      # Das Refresh-Token entsteht einmal am Arbeitsplatz (dort steht ein
+      # Browser fuer den Zustimmungsdialog) und laeuft nicht ab, solange der
+      # Zugang nicht widerrufen wird. Bereich: youtube.force-ssl.
+      YOUTUBE_CLIENT_ID: "${YOUTUBE_CLIENT_ID:-}"
+      YOUTUBE_CLIENT_SECRET: "${YOUTUBE_CLIENT_SECRET:-}"
+      YOUTUBE_REFRESH_TOKEN: "${YOUTUBE_REFRESH_TOKEN:-}"
       # Anzahl der Puma-Worker-Prozesse. MRI-Ruby fuehrt wegen des GVL je
       # Prozess nur auf einem Kern Ruby-Code aus; ohne diesen Wert laeuft die
       # API einprozessig und nutzt einen der acht Kerne des Servers. Am 1.

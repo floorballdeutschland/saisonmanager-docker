@@ -105,6 +105,41 @@ The deploy script:
 **Production server:** reachable via the `ssh saisonmanager` alias (host, user, and key live in the maintainer's local `~/.ssh/config`; hardware-key auth).
 Docker setup lives at `/opt/saisonmanager/saisonmanager-docker/`.
 
+## Livestream-Waechter (YouTube)
+
+Beendet laufende Uebertragungen des Verbandskanals, wenn seit 15 Minuten kein
+Signal mehr anliegt **und** der Spielbericht geschlossen ist. Laeuft als
+Cronjob auf dem Produktionshost:
+
+```bash
+*/5 * * * * docker exec saisonmanager_rails_api bundle exec rake streaming:watchdog RAILS_ENV=production >> /var/log/streaming-watchdog.log 2>&1
+```
+
+Zugangsdaten stehen in der gitignorierten `.env` in diesem Verzeichnis, wie der
+Sentry-DSN:
+
+```
+YOUTUBE_CLIENT_ID=...
+YOUTUBE_CLIENT_SECRET=...
+YOUTUBE_REFRESH_TOKEN=...
+```
+
+Client-ID und -Secret gehoeren zu einem OAuth-Client "Desktop app" im
+Google-Cloud-Projekt des Verbands; das Refresh-Token entsteht einmal am
+Arbeitsplatz mit dem Bereich `youtube.force-ssl` und laeuft nicht ab, solange
+der Zugang nicht widerrufen wird.
+
+**Nicht auf Staging setzen.** Der Staging-Stack traegt einen anonymisierten
+Klon der Produktionsdaten -- mit diesen Zugangsdaten wuerde sein Waechter
+echte, laufende Uebertragungen beenden. Ohne die Variablen meldet der Task,
+dass kein Zugang eingerichtet ist, und tut nichts.
+
+Vorschau ohne Eingriff:
+
+```bash
+docker exec -e DRY_RUN=1 saisonmanager_rails_api bundle exec rake streaming:watchdog RAILS_ENV=production
+```
+
 ## Staging-Umgebung (saisonmanager.dev)
 
 Staging läuft auf **demselben Server** wie Prod, in **demselben Compose-Projekt**,
