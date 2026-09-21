@@ -109,7 +109,7 @@ services:
     restart: unless-stopped
 
   redis-staging:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: saisonmanager_redis_staging
     # Deutlich kleiner als Produktion: Staging traegt keine Last, der Cache
     # muss nur denselben Betriebsmodus abbilden. Ein leerer Container belegt
