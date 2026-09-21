@@ -56,6 +56,27 @@ services:
       YOUTUBE_CLIENT_ID: "${YOUTUBE_CLIENT_ID:-}"
       YOUTUBE_CLIENT_SECRET: "${YOUTUBE_CLIENT_SECRET:-}"
       YOUTUBE_REFRESH_TOKEN: "${YOUTUBE_REFRESH_TOKEN:-}"
+      #
+      # Das Neuverbinden ueber die Oberflaeche (api#733). Der Anmeldecode aus
+      # dem Browser wird mit dem WEB-Client eingeloest -- einem anderen als dem
+      # Desktop-Client der drei Zeilen darueber, denn nur der Web-Client gehoert
+      # zu der Kennung, die im ausgelieferten Frontend steckt. Fehlt das Paar,
+      # bleibt der Bereich beim Hinweis "Verbindungsweg nicht eingerichtet" und
+      # der Waechter laeuft unveraendert ueber die Variablen oben weiter.
+      YOUTUBE_WEB_CLIENT_ID: "${YOUTUBE_WEB_CLIENT_ID:-}"
+      YOUTUBE_WEB_CLIENT_SECRET: "${YOUTUBE_WEB_CLIENT_SECRET:-}"
+      # Der Schluessel, mit dem der gespeicherte Zugang in der Datenbank liegt.
+      #
+      # DER WICHTIGSTE GRUND, WARUM ES IHN GIBT: Staging traegt einen 1:1-Klon
+      # der Produktionsdatenbank, einschliesslich dieser Zeile. Mit dem
+      # Master-Key entschluesselte der Klon den Zugang mit und koennte laufende
+      # Uebertragungen des echten Kanals beenden. Diese Variable steht deshalb
+      # NUR hier und nie in docker-compose.staging.yml -- dort bleibt die Zeile
+      # unlesbar, und die API meldet schlicht "nicht verbunden".
+      #
+      # Frei waehlbar, aber dauerhaft: Ein Wechsel macht den gespeicherten
+      # Zugang unlesbar und verlangt ein Neuverbinden ueber die Oberflaeche.
+      YOUTUBE_TOKEN_KEY: "${YOUTUBE_TOKEN_KEY:-}"
       # Anzahl der Puma-Worker-Prozesse. MRI-Ruby fuehrt wegen des GVL je
       # Prozess nur auf einem Kern Ruby-Code aus; ohne diesen Wert laeuft die
       # API einprozessig und nutzt einen der acht Kerne des Servers. Am 1.
