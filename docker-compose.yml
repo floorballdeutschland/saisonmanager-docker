@@ -171,7 +171,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: saisonmanager_redis
     # Reiner Cache, keine Persistenz: Der Inhalt ist jederzeit neu berechenbar,
     # ein verlorener Cache kostet einmalig Rechenzeit und keine Daten. Deshalb
