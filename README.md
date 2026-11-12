@@ -105,6 +105,24 @@ The deploy script:
 **Production server:** reachable via the `ssh saisonmanager` alias (host, user, and key live in the maintainer's local `~/.ssh/config`; hardware-key auth).
 Docker setup lives at `/opt/saisonmanager/saisonmanager-docker/`.
 
+## Host-Konfiguration (Logs)
+
+Dateien unter `host/` gehoeren nicht in einen Container, sondern auf den Server.
+Sie liegen hier, damit sie versioniert sind; installiert werden sie als Kopie:
+
+```bash
+install -m 644 -o root -g root host/logrotate/saisonmanager-nginx /etc/logrotate.d/saisonmanager-nginx
+install -D -m 644 -o root -g root host/journald/50-saisonmanager-groesse.conf /etc/systemd/journald.conf.d/50-saisonmanager-groesse.conf
+systemctl restart systemd-journald
+logrotate -d /etc/logrotate.d/saisonmanager-nginx   # Trockenlauf
+```
+
+Nach einer Aenderung hier erneut installieren, `deploy.sh` tut das nicht.
+Die Container-Logs (json-file) begrenzt `x-logging` in `docker-compose.yml`.
+
+Stand 09.11.2026 vor der Einfuehrung: 85 % Platte, davon 28,9 GB nginx-Zugriffslog,
+9 GB Rails-Containerlog, 4 GB Journal. Die Uploads machten nur 3,3 GB aus.
+
 ## Livestream-Waechter (YouTube)
 
 Beendet laufende Uebertragungen des Verbandskanals, wenn seit 15 Minuten kein

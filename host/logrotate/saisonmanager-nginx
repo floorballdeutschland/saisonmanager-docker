@@ -1,0 +1,27 @@
+# Rotation der nginx-Logs (Zugriff und Fehler) aller vhosts.
+#
+# Installiert als /etc/logrotate.d/saisonmanager-nginx (KOPIE, kein Symlink:
+# logrotate verlangt eine root-eigene Datei, der Checkout gehoert uid 1000).
+#
+# Ohne diese Regel wuchs saisonmanager.de.access.log vom 14.07. bis 09.11.2026
+# auf 28,9 GB (rund 245 MB pro Tag) und belegte allein 40 % der Platte.
+#
+# 14 Tage, weil die Logs IP-Adressen enthalten (Speicherdauer begrenzen) und
+# fuer eine Nachforschung zwei Wochen reichen.
+#
+# USR1 an den nginx-Master (PID 1 im offiziellen nginx-Image) oeffnet die
+# Logdateien neu, ohne Neustart und ohne Konfigurationspfad (nginx -s reopen
+# braeuchte -c /etc/nginx/nginx.prod.conf).
+/opt/saisonmanager/saisonmanager-docker/nginx/logs/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+    sharedscripts
+    postrotate
+        docker kill -s USR1 saisonmanager_dev_nginx >/dev/null 2>&1 || true
+    endscript
+}
