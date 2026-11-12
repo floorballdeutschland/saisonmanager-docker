@@ -1,0 +1,37 @@
+# Rotation der Logdateien, in die die Cronjobs des Servers schreiben
+# (`>> /var/log/<name>.log`, siehe `crontab -l`).
+#
+# Installiert als /etc/logrotate.d/saisonmanager-cron (KOPIE, wie
+# saisonmanager-nginx). Vorher wuchsen diese Dateien unbegrenzt; am 12.11.2026
+# zusammen 13 MB, der Streaming-Waechter schreibt alle fuenf Minuten.
+#
+# Bewusst eine feste Liste statt /var/log/*.log: Das Muster traefe auch
+# Systemlogs (auth.log, syslog), die eigene Regeln haben, und logrotate bricht
+# bei doppelt erfassten Dateien ab. Ein NEUER Cronjob mit eigener Logdatei
+# gehoert deshalb hier ergaenzt.
+#
+# Die Jobs oeffnen ihre Datei bei jedem Lauf neu (>>), ein Signal oder
+# copytruncate ist nicht noetig.
+/var/log/cleanup.log
+/var/log/db-backup.log
+/var/log/docker-builder-prune.log
+/var/log/expire_licenses.log
+/var/log/expire_suspensions.log
+/var/log/expire_transfers.log
+/var/log/game_scans_remind.log
+/var/log/player_stats.log
+/var/log/referee_feedback_notify.log
+/var/log/referee_license_lists.log
+/var/log/referee_observations.log
+/var/log/streaming-watchdog.log
+/var/log/system_disk_check.log
+/var/log/transfers_execute_scheduled.log
+{
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+}
