@@ -41,7 +41,9 @@ services:
     environment:
       DB_DATABASE: saisonmanager
       DB_USERNAME: saisonmanager
-      DB_PASSWORD: saisonmanager
+      # Auf dem Server aus der untracked .env (SM_DB_PASSWORD). Der Standard
+      # gilt nur fuer die lokale Entwicklung.
+      DB_PASSWORD: "${SM_DB_PASSWORD:-saisonmanager}"
       RAILS_MASTER_KEY: abc123
       DB_HOST: postgres
       DB_PORT: 5432
@@ -222,13 +224,21 @@ services:
     container_name: saisonmanager_postgres
     environment:
       POSTGRES_USER: saisonmanager
-      POSTGRES_PASSWORD: saisonmanager
+      # Wirkt nur beim allerersten Start auf ein leeres Datenverzeichnis. Ein
+      # neues Passwort fuer eine bestehende Datenbank braucht ALTER ROLE
+      # (siehe README, Abschnitt Datenbankzugang).
+      POSTGRES_PASSWORD: "${SM_DB_PASSWORD:-saisonmanager}"
       POSTGRES_DB: saisonmanager
     volumes:
       #- ./postgres/data:/var/lib/postgresql/data    # für die entwicklung gerne aktivieren.
       - ./postgres/scripts:/docker-entrypoint-initdb.d/
       - ./postgres/dumps:/db-dumps/
+    # Nur auf dem Loopback des Hosts. Ohne 127.0.0.1 veroeffentlicht Docker den
+    # Port auf allen Schnittstellen und umgeht dabei die Firewall des Hosts.
+    # Rails verbindet sich ueber das Docker-Netz (postgres:5432) und braucht
+    # den Port nicht. Zugriff von aussen nur per SSH-Tunnel:
+    #   ssh -L 49201:127.0.0.1:49201 saisonmanager
     ports:
-      - "49201:5432"
+      - "127.0.0.1:49201:5432"
     restart: unless-stopped
     logging: *log-groesse

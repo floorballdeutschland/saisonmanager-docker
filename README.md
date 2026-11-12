@@ -123,6 +123,33 @@ Die Container-Logs (json-file) begrenzt `x-logging` in `docker-compose.yml`.
 Stand 09.11.2026 vor der Einfuehrung: 85 % Platte, davon 28,9 GB nginx-Zugriffslog,
 9 GB Rails-Containerlog, 4 GB Journal. Die Uploads machten nur 3,3 GB aus.
 
+## Datenbankzugang
+
+Die Postgres-Ports (49201 Prod, 49301 Staging) sind nur an `127.0.0.1` des
+Servers gebunden. Docker schreibt fuer veroeffentlichte Ports eigene
+iptables-Regeln und umgeht damit `ufw`; eine Bindung ohne Adresse ist deshalb
+aus dem Internet erreichbar, egal was die Firewall sagt. Rails und die Skripte
+brauchen die Ports nicht (Docker-Netz bzw. `docker exec`). Fuer ein
+Datenbankprogramm auf dem eigenen Rechner:
+
+```bash
+ssh -N -L 49201:127.0.0.1:49201 saisonmanager   # dann localhost:49201
+```
+
+Die Passwoerter stehen in der untracked `.env` (`SM_DB_PASSWORD`,
+`SM_STAGING_DB_PASSWORD`). Der Standard `saisonmanager` aus diesem Repo gilt
+nur lokal. `POSTGRES_PASSWORD` wirkt nur beim ersten Start auf ein leeres
+Volume; ein neues Passwort fuer eine bestehende Datenbank:
+
+```bash
+docker exec saisonmanager_postgres psql -U saisonmanager -c "ALTER ROLE saisonmanager PASSWORD '<neu>'"
+# dann SM_DB_PASSWORD in .env setzen und rails-api neu erzeugen:
+$COMPOSE up -d rails-api
+```
+
+Zwischen `ALTER ROLE` und dem Neuerzeugen scheitern neue Verbindungen von
+Rails, also beides direkt nacheinander.
+
 ## Livestream-Waechter (YouTube)
 
 Beendet laufende Uebertragungen des Verbandskanals, wenn seit 15 Minuten kein
@@ -172,7 +199,7 @@ fehlendes Cert nie einen Prod-`nginx -t`/Deploy umwirft.
 | Service | Container | Isolation |
 |---|---|---|
 | `rails-api-staging` | `saisonmanager_rails_api_staging` | Branch `staging`, neutralisierte Secrets |
-| `postgres-staging` | `saisonmanager_postgres_staging` | Volume `postgres_staging_data`, Host-Port 49301 |
+| `postgres-staging` | `saisonmanager_postgres_staging` | Volume `postgres_staging_data`, Host-Port 49301 nur auf 127.0.0.1 |
 | `mailpit` | `saisonmanager_mailpit` | fängt alle Mails, UI unter `/mailpit/` |
 
 Compose-Aufruf (Basis + Prod-Overlay + Staging-Overlay):
