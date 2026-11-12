@@ -150,6 +150,65 @@ $COMPOSE up -d rails-api
 Zwischen `ALTER ROLE` und dem Neuerzeugen scheitern neue Verbindungen von
 Rails, also beides direkt nacheinander.
 
+## Datenbanksicherung
+
+`scripts/db-backup.sh <anlass> [behalten]` legt einen `pg_dump` (Custom-Format)
+unter `/opt/saisonmanager/backups/<anlass>/` an, prueft ihn und loescht die
+aeltesten ueber der Grenze. Zwei Anlaesse:
+
+| Anlass | Ausloeser | behalten |
+|---|---|---|
+| `vor-deploy` | `deploy.sh`, direkt vor `db:migrate`; ohne Dump keine Migration | 10 |
+| `taeglich` | Cronjob auf dem Server | 14 |
+
+Ein Dump hat rund 120 MB. Das Hetzner-Backup (taeglich 10:30) bleibt bestehen
+und nimmt die Dumps mit; gegen den Verlust des Servers selbst fehlt noch eine
+Ablage ausserhalb (api#881).
+
+Cronjob einmalig eintragen (Server laeuft auf UTC, 01:45 UTC liegt vor den
+3-Uhr-Jobs und nach Mitternacht deutscher Zeit):
+
+```bash
+(crontab -l; echo "45 1 * * * /opt/saisonmanager/saisonmanager-docker/scripts/db-backup.sh taeglich 14 >> /var/log/db-backup.log 2>&1") | crontab -
+```
+
+Zurueckspielen, zuerst immer in eine Pruefdatenbank:
+
+```bash
+F=/opt/saisonmanager/backups/vor-deploy/saisonmanager-<zeit>.dump
+docker exec saisonmanager_postgres createdb -U saisonmanager pruefung
+docker exec -i saisonmanager_postgres pg_restore -U saisonmanager -d pruefung --no-owner < "$F"
+# ... pruefen, dann aufraeumen:
+docker exec saisonmanager_postgres dropdb -U saisonmanager pruefung
+```
+
+Die Produktion selbst zuruecksetzen, etwa nach einer fehlerhaften Migration.
+Nicht mit `pg_restore --clean` in die laufende Datenbank: Das entfernt nur, was
+im Dump steht, laesst Tabellen der Migration stehen und laeuft nach Fehlern
+weiter. Stattdessen Datenbank neu anlegen und in einer Transaktion fuellen:
+
+```bash
+set -e
+COMPOSE="docker compose -f /opt/saisonmanager/saisonmanager-docker/docker-compose.yml -f /opt/saisonmanager/saisonmanager-docker/docker-compose.prod.yml -f /opt/saisonmanager/saisonmanager-docker/docker-compose.staging.yml"
+F=/opt/saisonmanager/backups/vor-deploy/saisonmanager-<zeit>.dump
+$COMPOSE stop rails-api
+docker exec saisonmanager_postgres dropdb -U saisonmanager saisonmanager
+docker exec saisonmanager_postgres createdb -U saisonmanager saisonmanager
+docker exec -i saisonmanager_postgres pg_restore -U saisonmanager -d saisonmanager --no-owner --single-transaction --exit-on-error < "$F"
+# API-Code auf den Stand vor dem Deploy zuruecksetzen, sonst startet der neue
+# Code gegen das alte Schema:
+#   cd /opt/saisonmanager/saisonmanager-api && git reset --hard <commit vorher>
+#   $COMPOSE build rails-api
+docker exec saisonmanager_redis redis-cli flushall   # Cache stammt sonst vom neueren Stand
+$COMPOSE up -d rails-api
+```
+
+`dropdb` scheitert, solange noch Verbindungen offen sind; dann zuerst pruefen,
+wer verbunden ist (`pg_stat_activity`), statt die Verbindungen hart zu trennen.
+
+Ein fehlgeschlagener taeglicher Lauf steht nur in `/var/log/db-backup.log`.
+Eine Ueberwachung (z. B. Sentry-Cron-Monitor) fehlt noch.
+
 ## Livestream-Waechter (YouTube)
 
 Beendet laufende Uebertragungen des Verbandskanals, wenn seit 15 Minuten kein

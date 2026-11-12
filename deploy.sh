@@ -22,6 +22,13 @@ git reset --hard origin/main
 # changed Gemfile.lock makes `bundle exec` fail with "Could not find <gem>".
 $COMPOSE build rails-api
 
+# Sicherung direkt vor der Migration: Eine fehlerhafte Migration laesst sich
+# sonst nicht gezielt zuruecknehmen (api#881). Schlaegt der Dump fehl, bricht
+# set -e hier ab; die laufenden Container bleiben dann auf dem alten Stand.
+# Laeuft bei jedem Deploy, auch ohne neue Migration: ein Dump kostet rund eine
+# Minute, und die Pruefung "gibt es eine?" waere selbst ein Rails-Start.
+/opt/saisonmanager/saisonmanager-docker/scripts/db-backup.sh vor-deploy 10
+
 # Run pending migrations (uses the freshly built image).
 $COMPOSE run --rm -e RAILS_ENV=production rails-api bundle exec rails db:migrate
 
