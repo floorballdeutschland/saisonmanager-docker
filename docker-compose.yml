@@ -1,3 +1,18 @@
+# Groessengrenze fuer die Container-Logs (json-file). Ohne sie waechst das
+# Log eines Containers bis zum naechsten Neuerzeugen unbegrenzt: Am 09.11.2026
+# lagen nach zehn Tagen 9 GB Rails-Log auf der Platte (rund 0,9 GB pro Tag),
+# eine /etc/docker/daemon.json mit Standardgrenze gibt es auf dem Server nicht.
+# 10 x 200 MB halten bei Prod-Last rund zwei Tage (die Spiel-61889-Analyse
+# brauchte Requests von vor mehreren Tagen). Fuer laengere
+# Request-Verfolgung nach einem Vorfall frueh genug sichern
+# (docker logs --since ... > Datei), aeltere Zeilen sind sonst weg.
+# Wirkt erst, wenn der Container neu erzeugt wird (naechster Deploy).
+x-logging: &log-groesse
+  driver: json-file
+  options:
+    max-size: "200m"
+    max-file: "10"
+
 services:
   nginx:
     build:
@@ -13,6 +28,7 @@ services:
       - ./nginx/logs:/logs
       - ./saisonmanager-frontend:/saisonmanager-frontend
     restart: unless-stopped
+    logging: *log-groesse
   rails-api:
     build:
       context: ../saisonmanager-api
@@ -170,6 +186,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    logging: *log-groesse
   redis:
     image: redis:8-alpine
     container_name: saisonmanager_redis
@@ -199,6 +216,7 @@ services:
     # hat keine Authentifizierung konfiguriert, ein offener Port waere ein
     # unmittelbares Risiko.
     restart: unless-stopped
+    logging: *log-groesse
   postgres:
     image: postgres:12
     container_name: saisonmanager_postgres
@@ -213,3 +231,4 @@ services:
     ports:
       - "49201:5432"
     restart: unless-stopped
+    logging: *log-groesse

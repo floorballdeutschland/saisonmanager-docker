@@ -12,6 +12,15 @@
 # Das einzige Secret (SECRET_KEY_BASE) kommt aus der untracked .env-Datei im
 # docker-Verzeichnis (SM_STAGING_SECRET_KEY_BASE). Alle externen Dienste sind
 # neutralisiert: Passmeister leer, SMTP -> Mailpit, Azure ungenutzt (:local).
+#
+# Container-Loggrenze: Begruendung in docker-compose.yml. YAML-Anker gelten
+# nur innerhalb einer Datei, deshalb hier mit denselben Werten wiederholt.
+x-logging: &log-groesse
+  driver: json-file
+  options:
+    max-size: "200m"
+    max-file: "10"
+
 services:
   nginx:
     # Staging-Frontend zusätzlich in denselben nginx mounten. Wird mit den
@@ -107,6 +116,7 @@ services:
       redis-staging:
         condition: service_healthy
     restart: unless-stopped
+    logging: *log-groesse
 
   redis-staging:
     image: redis:8-alpine
@@ -122,6 +132,7 @@ services:
       retries: 5
       start_period: 5s
     restart: unless-stopped
+    logging: *log-groesse
 
   postgres-staging:
     image: postgres:16
@@ -135,6 +146,7 @@ services:
     ports:
       - "49301:5432"   # Host-Zugang für DB-Refresh/Debug (nur intern erreichbar)
     restart: unless-stopped
+    logging: *log-groesse
 
   mailpit:
     image: axllent/mailpit:latest
@@ -144,6 +156,7 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
       MP_WEBROOT: "mailpit"   # Web-UI unter Subpfad /mailpit/ ausliefern
     restart: unless-stopped
+    logging: *log-groesse
     # Web-UI (8025) wird via nginx unter https://saisonmanager.dev/mailpit/
     # hinter Basic Auth bereitgestellt; SMTP (1025) nur intern im Compose-Netz.
 
