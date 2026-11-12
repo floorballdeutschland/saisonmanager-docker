@@ -42,7 +42,7 @@ services:
       RAILS_ENV: production
       DB_DATABASE: saisonmanager
       DB_USERNAME: saisonmanager
-      DB_PASSWORD: saisonmanager
+      DB_PASSWORD: "${SM_STAGING_DB_PASSWORD:-saisonmanager}"
       DB_HOST: postgres-staging
       DB_PORT: 5432
       RAILS_MASTER_KEY: placeholder_not_used
@@ -139,12 +139,14 @@ services:
     container_name: saisonmanager_postgres_staging
     environment:
       POSTGRES_USER: saisonmanager
-      POSTGRES_PASSWORD: saisonmanager
+      POSTGRES_PASSWORD: "${SM_STAGING_DB_PASSWORD:-saisonmanager}"
       POSTGRES_DB: saisonmanager
     volumes:
       - postgres_staging_data:/var/lib/postgresql/data
     ports:
-      - "49301:5432"   # Host-Zugang für DB-Refresh/Debug (nur intern erreichbar)
+      # Nur Loopback, wie beim Prod-Postgres. Die Staging-DB ist ein 1:1-Klon
+      # der Produktion. Der Refresh laeuft ueber docker exec, nicht ueber den Port.
+      - "127.0.0.1:49301:5432"
     restart: unless-stopped
     logging: *log-groesse
 

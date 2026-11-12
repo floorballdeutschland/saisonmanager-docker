@@ -5,7 +5,8 @@ nginx/logs/*
 saisonmanager-frontend/*
 
 postgres/data/*
-postgres/dumps/*.sql
+postgres/dumps/*
+!postgres/dumps/.keep
 
 *.pem
 README.pdf
