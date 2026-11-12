@@ -36,4 +36,8 @@ $COMPOSE run --rm -e RAILS_ENV=production rails-api bundle exec rails db:migrate
 # alone would relaunch the old container from the previous image.
 $COMPOSE up -d nginx rails-api
 
+# Das alte Image ist nach dem Neubau namenlos ("dangling") und belegt sonst
+# dauerhaft Platz; bei Ruby-Updates sind das mehrere hundert MB je Deploy.
+docker image prune -f >/dev/null || true
+
 echo "Deployed."

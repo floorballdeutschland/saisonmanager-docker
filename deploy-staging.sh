@@ -49,4 +49,8 @@ $COMPOSE up -d postgres-staging mailpit rails-api-staging
 docker exec saisonmanager_dev_nginx nginx -t -c /etc/nginx/nginx.prod.conf && \
   docker exec saisonmanager_dev_nginx nginx -s reload -c /etc/nginx/nginx.prod.conf
 
+# Das alte Image ist nach dem Neubau namenlos ("dangling") und belegt sonst
+# dauerhaft Platz; bei Ruby-Updates sind das mehrere hundert MB je Deploy.
+docker image prune -f >/dev/null || true
+
 echo "Staging deployed."

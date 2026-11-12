@@ -112,9 +112,11 @@ Sie liegen hier, damit sie versioniert sind; installiert werden sie als Kopie:
 
 ```bash
 install -m 644 -o root -g root host/logrotate/saisonmanager-nginx /etc/logrotate.d/saisonmanager-nginx
+install -m 644 -o root -g root host/logrotate/saisonmanager-cron /etc/logrotate.d/saisonmanager-cron
 install -D -m 644 -o root -g root host/journald/50-saisonmanager-groesse.conf /etc/systemd/journald.conf.d/50-saisonmanager-groesse.conf
 systemctl restart systemd-journald
 logrotate -d /etc/logrotate.d/saisonmanager-nginx   # Trockenlauf
+logrotate -d /etc/logrotate.d/saisonmanager-cron
 ```
 
 Nach einer Aenderung hier erneut installieren, `deploy.sh` tut das nicht.
@@ -122,6 +124,31 @@ Die Container-Logs (json-file) begrenzt `x-logging` in `docker-compose.yml`.
 
 Stand 09.11.2026 vor der Einfuehrung: 85 % Platte, davon 28,9 GB nginx-Zugriffslog,
 9 GB Rails-Containerlog, 4 GB Journal. Die Uploads machten nur 3,3 GB aus.
+
+### Plattenplatz: was waechst und wo die Grenze ist
+
+Jede Quelle, die von selbst waechst, braucht eine Grenze. Wer einen neuen
+Automatismus einfuehrt (Cronjob mit Logdatei, Dump, Export), traegt ihn hier ein.
+
+| Quelle | Grenze | Wo geregelt |
+|---|---|---|
+| Container-Logs (json-file) | 200 MB x 10 je Container (2 GB, bei 8 Containern hoechstens 16 GB) | `x-logging` in `docker-compose.yml` |
+| nginx-Logs | 14 Tage | `host/logrotate/saisonmanager-nginx` |
+| Logs der Cronjobs | 8 Wochen | `host/logrotate/saisonmanager-cron` (feste Liste) |
+| Journal | feste Groesse | `host/journald/50-saisonmanager-groesse.conf` |
+| Datenbank-Dumps | 10 vor Deploys, 14 taeglich, Abbruch unter 2 GB frei | `scripts/db-backup.sh` |
+| Alte Images nach dem Neubau | werden geloescht | Ende von `deploy.sh` / `deploy-staging.sh` |
+| Build-Cache | aelter als 7 Tage weg | Cronjob `docker builder prune` (unten) |
+| Uploads (ActiveStorage), Datenbank | fachlich, keine feste Grenze | Warnmail bei 80/90 % (`rake system:disk_check`, taeglich) |
+
+Cronjob fuer den Build-Cache (woechentlich, ersetzt die fruehere Monatszeile mit
+30 Tagen; ein Rebuild mit neuem Ruby legt mehrere GB Cache an):
+
+```bash
+0 3 * * 0 docker builder prune -f --filter until=168h >> /var/log/docker-builder-prune.log 2>&1
+```
+
+Zum Nachsehen: `df -h /`, `docker system df`, `du -sh /var/log/* | sort -rh | head`.
 
 ## Datenbankzugang
 
