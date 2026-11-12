@@ -150,6 +150,47 @@ $COMPOSE up -d rails-api
 Zwischen `ALTER ROLE` und dem Neuerzeugen scheitern neue Verbindungen von
 Rails, also beides direkt nacheinander.
 
+## Datenbanksicherung
+
+`scripts/db-backup.sh <anlass> [behalten]` legt einen `pg_dump` (Custom-Format)
+unter `/opt/saisonmanager/backups/<anlass>/` an, prueft ihn und loescht die
+aeltesten ueber der Grenze. Zwei Anlaesse:
+
+| Anlass | Ausloeser | behalten |
+|---|---|---|
+| `vor-deploy` | `deploy.sh`, direkt vor `db:migrate`; ohne Dump keine Migration | 10 |
+| `taeglich` | Cronjob auf dem Server | 14 |
+
+Ein Dump hat rund 120 MB. Das Hetzner-Backup (taeglich 10:30) bleibt bestehen
+und nimmt die Dumps mit; gegen den Verlust des Servers selbst fehlt noch eine
+Ablage ausserhalb (api#881).
+
+Cronjob einmalig eintragen (Server laeuft auf UTC, 01:45 UTC liegt vor den
+3-Uhr-Jobs und nach Mitternacht deutscher Zeit):
+
+```bash
+(crontab -l; echo "45 1 * * * /opt/saisonmanager/saisonmanager-docker/scripts/db-backup.sh taeglich 14 >> /var/log/db-backup.log 2>&1") | crontab -
+```
+
+Zurueckspielen, zuerst immer in eine Pruefdatenbank:
+
+```bash
+F=/opt/saisonmanager/backups/vor-deploy/saisonmanager-<zeit>.dump
+docker exec saisonmanager_postgres createdb -U saisonmanager pruefung
+docker exec -i saisonmanager_postgres pg_restore -U saisonmanager -d pruefung --no-owner < "$F"
+# ... pruefen, dann aufraeumen:
+docker exec saisonmanager_postgres dropdb -U saisonmanager pruefung
+```
+
+Die Produktion selbst ueberschreiben (API vorher stoppen, sonst schreibt sie
+weiter):
+
+```bash
+$COMPOSE stop rails-api
+docker exec -i saisonmanager_postgres pg_restore -U saisonmanager -d saisonmanager --clean --if-exists --no-owner < "$F"
+$COMPOSE up -d rails-api
+```
+
 ## Livestream-Waechter (YouTube)
 
 Beendet laufende Uebertragungen des Verbandskanals, wenn seit 15 Minuten kein
