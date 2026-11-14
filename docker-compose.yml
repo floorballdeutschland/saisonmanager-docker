@@ -21,8 +21,12 @@ services:
     container_name: saisonmanager_dev_nginx
     image: saisonmanager_dev_nginx
 
+    # Nur Loopback. Ohne 127.0.0.1 veroeffentlicht Docker den Port auf allen
+    # Schnittstellen und umgeht die Firewall des Hosts (siehe Postgres unten).
+    # Auf dem Server stand 49200 bis 11/2026 als zweiter Weg auf denselben
+    # nginx offen im Netz; Produktion nutzt 80/443 aus docker-compose.prod.yml.
     ports:
-      - "49200:443"
+      - "127.0.0.1:49200:443"
     volumes:
       - ./nginx/config:/etc/nginx/:ro
       - ./nginx/logs:/logs
