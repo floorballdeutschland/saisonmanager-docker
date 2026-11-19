@@ -52,12 +52,19 @@ services:
       - /opt/saisonmanager/saisonmanager-frontend-staging:/saisonmanager-frontend-staging:ro
     depends_on:
       - rails-api-staging
+    # nginx ist der EINZIGE Dienst in beiden Netzen. "default" muss ausdruecklich
+    # dastehen: Eine networks-Angabe ersetzt das implizite Standardnetz, nginx
+    # verloere sonst den Weg zu rails-api (Prod).
+    networks:
+      - default
+      - staging
 
   rails-api-staging:
     build:
       context: ../saisonmanager-api-staging
       dockerfile: Dockerfile
     container_name: saisonmanager_rails_api_staging
+    networks: [staging]
     image: saisonmanager_rails_api_staging
     volumes:
       - rails_storage_staging:/app/storage
@@ -144,6 +151,7 @@ services:
   redis-staging:
     image: redis:8-alpine
     container_name: saisonmanager_redis_staging
+    networks: [staging]
     # Deutlich kleiner als Produktion: Staging traegt keine Last, der Cache
     # muss nur denselben Betriebsmodus abbilden. Ein leerer Container belegt
     # gemessen rund 14 MB.
@@ -160,6 +168,7 @@ services:
   postgres-staging:
     image: postgres:16
     container_name: saisonmanager_postgres_staging
+    networks: [staging]
     command: *postgres-protokoll
     environment:
       POSTGRES_USER: saisonmanager
@@ -177,6 +186,7 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: saisonmanager_mailpit
+    networks: [staging]
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
@@ -185,6 +195,17 @@ services:
     logging: *log-groesse
     # Web-UI (8025) wird via nginx unter https://saisonmanager.dev/mailpit/
     # hinter Basic Auth bereitgestellt; SMTP (1025) nur intern im Compose-Netz.
+
+# Eigenes Netz fuer Staging (11/2026). Vorher hingen alle Container im
+# Standardnetz, und der Staging-Container erreichte Prod-Postgres und den
+# Prod-Redis (ohne Passwort) unter "postgres" bzw. "redis". Staging traegt
+# einen 1:1-Klon mit Prod-Konten und laeuft mit Code, der noch nicht auf main
+# ist; wer dort eindringt, soll nicht bis zur Produktion durchreichen.
+# Die Staging-Skripte (Refresh, Nutzerabgleich) arbeiten ueber docker exec und
+# brauchen keine Netzverbindung zwischen den Stacks.
+networks:
+  staging:
+    name: saisonmanager_staging
 
 volumes:
   postgres_staging_data:
