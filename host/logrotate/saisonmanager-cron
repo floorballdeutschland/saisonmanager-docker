@@ -20,6 +20,7 @@
 /var/log/expire_transfers.log
 /var/log/game_scans_remind.log
 /var/log/player_stats.log
+/var/log/port-pruefung.log
 /var/log/referee_feedback_notify.log
 /var/log/referee_license_lists.log
 /var/log/referee_observations.log

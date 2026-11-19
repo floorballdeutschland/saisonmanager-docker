@@ -21,6 +21,29 @@ x-logging: &log-groesse
     max-size: "200m"
     max-file: "10"
 
+# Postgres-Protokoll: Begruendung in docker-compose.yml, Werte wiederholt
+# (YAML-Anker gelten nur innerhalb einer Datei).
+x-postgres-protokoll: &postgres-protokoll
+  - postgres
+  - -c
+  - log_connections=on
+  - -c
+  - log_disconnections=on
+  - -c
+  - "log_line_prefix=%m [%p] %q%u@%d %r "
+  - -c
+  - logging_collector=on
+  - -c
+  - log_directory=log
+  - -c
+  - log_filename=postgresql-%Y-%m-%d.log
+  - -c
+  - log_rotation_age=1d
+  - -c
+  - log_rotation_size=0
+  - -c
+  - log_file_mode=0600
+
 services:
   nginx:
     # Staging-Frontend zusätzlich in denselben nginx mounten. Wird mit den
@@ -137,6 +160,7 @@ services:
   postgres-staging:
     image: postgres:16
     container_name: saisonmanager_postgres_staging
+    command: *postgres-protokoll
     environment:
       POSTGRES_USER: saisonmanager
       POSTGRES_PASSWORD: "${SM_STAGING_DB_PASSWORD:-saisonmanager}"

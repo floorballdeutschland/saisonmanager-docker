@@ -136,6 +136,7 @@ Automatismus einfuehrt (Cronjob mit Logdatei, Dump, Export), traegt ihn hier ein
 | nginx-Logs | 14 Tage | `host/logrotate/saisonmanager-nginx` |
 | Logs der Cronjobs | 8 Wochen | `host/logrotate/saisonmanager-cron` (feste Liste) |
 | Journal | feste Groesse | `host/journald/50-saisonmanager-groesse.conf` |
+| Postgres-Anmeldeprotokoll | 90 Tage | Cronjob `find -mtime +90` (Abschnitt Anmeldeprotokoll) |
 | Datenbank-Dumps | 10 vor Deploys, 14 taeglich, Abbruch unter 2 GB frei | `scripts/db-backup.sh` |
 | Alte Images nach dem Neubau | werden geloescht | Ende von `deploy.sh` / `deploy-staging.sh` |
 | Build-Cache | aelter als 7 Tage weg | Cronjob `docker builder prune` (unten) |
@@ -176,6 +177,70 @@ $COMPOSE up -d rails-api
 
 Zwischen `ALTER ROLE` und dem Neuerzeugen scheitern neue Verbindungen von
 Rails, also beides direkt nacheinander.
+
+### Anmeldeprotokoll (docker#50)
+
+Beide Postgres-Container protokollieren jede An- und Abmeldung mit Zeitpunkt,
+Benutzer, Datenbank und Herkunft, aber keine Abfragen. Die Einstellungen stehen
+als `x-postgres-protokoll` in `docker-compose.yml` (und wiederholt in
+`docker-compose.staging.yml`). Die Zeilen gehen in Tagesdateien im
+Datenverzeichnis, nicht ins Container-Log:
+
+```bash
+docker exec saisonmanager_postgres bash -c 'ls $PGDATA/log'
+docker exec saisonmanager_postgres bash -c 'grep "connection authorized" $PGDATA/log/postgresql-$(date +%F).log'
+```
+
+`docker logs saisonmanager_postgres` zeigt seitdem nur noch den Start.
+Aufbewahrung 90 Tage, Cronjob einmalig eintragen:
+
+```bash
+(crontab -l; echo "30 4 * * * for c in saisonmanager_postgres saisonmanager_postgres_staging; do docker exec \$c find /var/lib/postgresql/data/log -name 'postgresql-*.log' -mtime +90 -delete; done") | crontab -
+```
+
+Wirksam erst nach dem Neuerzeugen des Containers, das ist ein kurzer Neustart
+der Datenbank (vorher sichern):
+
+```bash
+scripts/db-backup.sh vor-deploy 10
+$COMPOSE up -d postgres-staging            # zuerst Staging
+$COMPOSE up -d postgres                    # dann Prod, ruhiges Zeitfenster
+docker exec saisonmanager_postgres psql -U saisonmanager -Atc 'show log_connections'   # on
+```
+
+## Portpruefung (docker#51)
+
+Docker veroeffentlicht Ports an der Host-Firewall vorbei. `scripts/port-pruefung.sh`
+meldet per Mail (Postfach der Plattenwarnung, `SystemHealthMailer::NOTIFY_EMAIL`,
+verschickt ueber die Rails-App), wenn mehr offen ist als vorgesehen:
+
+| Modus | wann | was | erlaubt |
+|---|---|---|---|
+| `intern` | taeglich | `docker ps` und `ss` auf dem Server | 80/443 (nginx), 22 (sshd) |
+| `extern` | woechentlich | Portscan aller TCP-Ports von docker01 aus | 22, 80, 443 |
+
+Auch eine gescheiterte Pruefung schickt eine Mail. Ergebnisse stehen nur in
+`/var/log/port-pruefung.log`, nicht in GitHub Actions (oeffentliches Repo).
+
+Einrichtung des externen Scans (einmalig): Der Saisonmanager-Server bekommt
+einen eigenen Schluessel, der auf docker01 nur den Scan ausfuehren darf.
+
+```bash
+# auf saisonmanager
+ssh-keygen -t ed25519 -N "" -C portpruefung@saisonmanager -f /root/.ssh/portpruefung
+ssh-keyscan -t ed25519 116.203.113.70 >> /root/.ssh/known_hosts
+# auf docker01
+apt-get install -y nmap
+install -m 755 host/portpruefung/scan-von-aussen.sh /usr/local/bin/saisonmanager-portscan
+echo 'command="/usr/local/bin/saisonmanager-portscan",restrict <inhalt von /root/.ssh/portpruefung.pub>' >> /root/.ssh/authorized_keys
+```
+
+Cronjobs (UTC; 05:15 liegt nach Backup und Aufraeumen):
+
+```bash
+(crontab -l; echo "15 5 * * * /opt/saisonmanager/saisonmanager-docker/scripts/port-pruefung.sh intern >> /var/log/port-pruefung.log 2>&1") | crontab -
+(crontab -l; echo "45 5 * * 1 /opt/saisonmanager/saisonmanager-docker/scripts/port-pruefung.sh extern >> /var/log/port-pruefung.log 2>&1") | crontab -
+```
 
 ## Datenbanksicherung
 
