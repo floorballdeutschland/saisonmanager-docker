@@ -13,6 +13,40 @@ x-logging: &log-groesse
     max-size: "200m"
     max-file: "10"
 
+# Postgres protokolliert An- und Abmeldungen (docker#50, Zusage an die
+# Aufsichtsbehoerde nach dem offenen Datenbankport vom 12.11.2026). Bis dahin
+# liess sich nicht feststellen, ob sich jemand von aussen angemeldet hatte.
+#
+# - Je Anmeldung eine Zeile mit Zeitpunkt, Benutzer, Datenbank und Herkunft
+#   (%r = Adresse:Port). Abfragen werden NICHT protokolliert (log_statement
+#   bleibt none), damit keine Inhalte und Personendaten ins Log geraten.
+# - Eigene Tagesdateien statt Container-Log, weil die Aufbewahrung zeitlich
+#   bemessen ist (90 Tage) und nicht nach Groesse: Die Zeilen liegen unter
+#   $PGDATA/log/postgresql-JJJJ-MM-TT.log, den Rest loescht ein Cronjob (README,
+#   Abschnitt Datenbankzugang). `docker logs` zeigt danach nur noch den Start.
+# - Alles hier wirkt erst nach dem Neuerzeugen des Containers (kurzer Neustart
+#   der Datenbank), deploy.sh tut das nicht.
+x-postgres-protokoll: &postgres-protokoll
+  - postgres
+  - -c
+  - log_connections=on
+  - -c
+  - log_disconnections=on
+  - -c
+  - "log_line_prefix=%m [%p] %q%u@%d %r "
+  - -c
+  - logging_collector=on
+  - -c
+  - log_directory=log
+  - -c
+  - log_filename=postgresql-%Y-%m-%d.log
+  - -c
+  - log_rotation_age=1d
+  - -c
+  - log_rotation_size=0
+  - -c
+  - log_file_mode=0600
+
 services:
   nginx:
     build:
@@ -226,6 +260,7 @@ services:
   postgres:
     image: postgres:12
     container_name: saisonmanager_postgres
+    command: *postgres-protokoll
     environment:
       POSTGRES_USER: saisonmanager
       # Wirkt nur beim allerersten Start auf ein leeres Datenverzeichnis. Ein
