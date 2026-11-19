@@ -112,8 +112,9 @@ Ports in Compose deshalb immer mit 127.0.0.1: veroeffentlichen."
 pruefe_extern() {
   local ausgabe offen=() zeile port
   # Der Befehl steht fest im authorized_keys von docker01, hier wird nichts
-  # uebergeben. BatchMode: ohne Schluessel nicht haengen bleiben.
-  ausgabe="$(ssh -i "$SSH_SCHLUESSEL" -o BatchMode=yes -o ConnectTimeout=20 \
+  # uebergeben. BatchMode: ohne Schluessel nicht haengen bleiben. -n: sonst
+  # liest ssh die Standardeingabe des Aufrufers leer (z. B. ein Heredoc).
+  ausgabe="$(ssh -n -i "$SSH_SCHLUESSEL" -o BatchMode=yes -o ConnectTimeout=20 \
     -o StrictHostKeyChecking=yes "root@$SCAN_HOST" 2>&1)" || {
     melden "Saisonmanager: Portpruefung von aussen gescheitert" \
       "$(date '+%F %T') Der Scan von $SCAN_HOST aus lief nicht:

@@ -17,7 +17,9 @@ scan() {
   local adresse="$1" ausgabe port; shift
   # Erst ganz einsammeln: Ein gescheitertes nmap muss als Fehler zaehlen,
   # "keine offenen Ports" dagegen nicht (grep ohne Treffer ist kein Fehler).
-  ausgabe="$(nmap -Pn -T4 -p- --open -oG - "$@" "$adresse")" || return 1
+  # Mit -T4 allein dauerte der volle Scan ueber zehn Minuten. --min-rate haelt
+  # ihn bei rund einer Minute je Adresse; gegen den eigenen Server vertretbar.
+  ausgabe="$(nmap -Pn -T4 --min-rate 1000 --max-retries 1 -p- --open -oG - "$@" "$adresse")" || return 1
   grep -q '^# Nmap done' <<< "$ausgabe" || return 1
   for port in $(grep -o '[0-9]*/open/tcp' <<< "$ausgabe" | cut -d/ -f1); do
     echo "OFFEN $adresse $port"
@@ -28,7 +30,11 @@ v4="$(getent ahostsv4 "$ZIEL" | awk 'NR==1 {print $1}')"
 [ -n "$v4" ] || { echo "FEHLER: keine IPv4-Adresse fuer $ZIEL"; exit 1; }
 scan "$v4" || exit 1
 
-v6="$(getent ahostsv6 "$ZIEL" | awk '$1 ~ /:/ && NR==1 {print $1}')"
+# Ohne AAAA-Eintrag liefert ahostsv6 eine IPv4-gemappte Adresse (::ffff:...).
+# Die ist kein IPv6-Ziel und liess nmap haengen, deshalb ausgefiltert.
+# Stand 11/2026 hat saisonmanager.de keinen AAAA-Eintrag; Bindungen auf [::]
+# sieht die interne Pruefung.
+v6="$(getent ahostsv6 "$ZIEL" | awk '$1 ~ /:/ && $1 !~ /^::ffff:/ {print $1; exit}')"
 if [ -n "$v6" ] && ip -6 route get "$v6" >/dev/null 2>&1; then
   scan "$v6" -6 || exit 1
 else
