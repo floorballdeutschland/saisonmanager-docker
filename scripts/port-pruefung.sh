@@ -11,7 +11,8 @@ set -euo pipefail
 # solche Fehlkonfiguration soll innerhalb eines Tages auffallen.
 #
 # intern  liest `docker ps` und `ss` (nur lesend). Erlaubt sind auf allen
-#         Schnittstellen nur 80 und 443 (nginx) sowie 22 (sshd, nicht Docker).
+#         Schnittstellen nur 80 und 443 (nginx), 22 (sshd, nicht Docker) und
+#         UDP 68 (DHCP-Client).
 #         Alles auf 127.0.0.0/8 oder ::1 ist unkritisch.
 # extern  laesst docker01 per SSH einen Portscan auf diesen Server machen
 #         (Schluessel mit festem Befehl, siehe host/portpruefung/). Erwartet
@@ -33,6 +34,9 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 MODUS="${1:-}"
 ERLAUBT_DOCKER=" 80 443 "
 ERLAUBT_HOST=" 22 80 443 "
+# DHCP-Client von Hetzner (lauscht auf der oeffentlichen Adresse, ist aber
+# kein Dienst, der von aussen angesprochen wird).
+ERLAUBT_HOST_UDP=" 68 "
 ERLAUBT_EXTERN=" 22 80 443 "
 RAILS_CONTAINER="${RAILS_CONTAINER:-saisonmanager_rails_api}"
 SSH_SCHLUESSEL="${SSH_SCHLUESSEL:-/root/.ssh/portpruefung}"
@@ -89,6 +93,7 @@ pruefe_intern() {
     addr="${lokal_spalte%:*}"; port="${lokal_spalte##*:}"
     nur_lokal "$addr" && continue
     [[ "$proto" == tcp && "$ERLAUBT_HOST" == *" $port "* ]] && continue
+    [[ "$proto" == udp && "$ERLAUBT_HOST_UDP" == *" $port "* ]] && continue
     funde+=("Host lauscht auf $proto $lokal_spalte")
   done <<< "$ss_ausgabe"
 
