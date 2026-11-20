@@ -51,8 +51,10 @@ ENV_FILE="$DOCKER_DIR/.env"
 # ist öffentlich) und stehen daher in der gitignorierten .env:
 #   STAGING_USER_PASSWORD=...    gemeinsames Passwort aller demo_*-Konten
 #   STAGING_ADMIN_PASSWORD=...   abweichendes Passwort nur für demo_admin
-# Fehlt ein Wert, greift der Default des Rake-Tasks ('staging-password' bzw.
-# das gemeinsame Passwort) – der Task gibt am Ende aus, was gesetzt wurde.
+# Beide sind Pflicht: Der Rake-Task kennt seit api#913 keinen Standardwert mehr
+# und bricht ohne sie ab. Geprüft wird hier VOR Schritt 1, denn in Schritt 4
+# wären die Staging-DB schon ersetzt und die Konten schon gelöscht, und .dev
+# stünde ohne ein einziges demo_*-Konto da.
 # Gelesen wird gezielt Zeile für Zeile, statt die .env zu sourcen: so landen
 # keine unbeteiligten Secrets in der Umgebung dieses Skripts.
 env_value() {
@@ -63,7 +65,12 @@ env_value() {
 
 STAGING_USER_PASSWORD="$(env_value STAGING_USER_PASSWORD)"
 STAGING_ADMIN_PASSWORD="$(env_value STAGING_ADMIN_PASSWORD)"
-[ -n "$STAGING_USER_PASSWORD" ] || echo "HINWEIS: STAGING_USER_PASSWORD fehlt in $ENV_FILE – Demo-Konten bekommen das Task-Default-Passwort."
+for key in STAGING_USER_PASSWORD STAGING_ADMIN_PASSWORD; do
+  if [ -z "${!key}" ]; then
+    echo "ABBRUCH: $key fehlt in $ENV_FILE. Es wurde nichts verändert." >&2
+    exit 1
+  fi
+done
 
 # Der Dump enthält echte personenbezogene Daten – bei JEDEM Abbruch löschen,
 # nicht nur im Erfolgsfall (set -e würde sonst den Dump auf der Platte lassen).
