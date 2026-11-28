@@ -1,0 +1,12 @@
+# Geprüfte Altfunde aus der Historie (Einmalscan 28.11.2026, gitleaks 8.30.1).
+# Format: <commit>:<datei>:<regel>:<zeile>. Ein Eintrag hier macht den Fund
+# nicht ungeschehen; er steht weiter öffentlich in der Historie.
+
+# ECHTER Azure-Storage-Zugriffsschlüssel im Klartext (2024). Aus dem Compose
+# entfernt in #20 (Azure wird nicht genutzt), aber nur erledigt, wenn er im
+# Azure-Portal rotiert bzw. das Storage-Konto gelöscht ist.
+b5991d36e183df444eddb7dd66a568091f2817f7:docker-compose.yml:generic-api-key:30
+
+# Archiv-Init: UPDATE überschreibt alle Benutzerpasswörter mit einem festen
+# Füllwert, um die Konten unbrauchbar zu machen. Kein Geheimnis.
+b5991d36e183df444eddb7dd66a568091f2817f7:postgres/scripts/001_create_database_and_init.sh:generic-api-key:34
